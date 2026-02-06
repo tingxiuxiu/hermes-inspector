@@ -1,0 +1,25 @@
+{
+  "pythonPath": ".venv\\Scripts\\python.exe",
+  "venv": {
+    "path": ".venv"
+  },
+  "typeCheckingMode": "strict",
+  "include": [
+    "backend/src",
+    "backend/tests"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    "**/.git"
+  ],
+  "ignore": [],
+  "extraPaths": [
+    "backend/src"
+  ],
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": "warning",
+  "reportUnusedImport": "error",
+  "reportUnusedVariable": "error",
+  "reportUnusedFunction": "error"
+}

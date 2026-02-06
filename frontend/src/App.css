@@ -1,0 +1,97 @@
+#root {
+  width: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+.content-area {
+  height: calc(100vh - 106px);
+  display: flex;
+  width: 100%;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.control-panel {
+  height: 50px;
+  background-color: #ffffff;
+  border-radius: 8px;
+}
+
+.screen-panel {
+  height: calc(100% - 40px);
+  background-color: #f7f8fa;
+  border-radius: 8px;
+}
+
+.screen-area-box {
+  margin: 8px;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.split-x {
+  height: 3px;
+  background-color: transparent;
+  border: none;
+}
+
+.split-y {
+  width: 3px;
+  background-color: transparent;
+  border: none;
+}
+
+.inspector-panel {
+  background-color: #f7f8fa;
+  border-radius: 8px;
+}
+
+.bottom-area {
+  height: 40px;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  padding-top: 0 16px;
+  color: black;
+  border-top: 1px solid #e5e6eb;
+  font-size: 14px;
+}
