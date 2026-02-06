@@ -13,6 +13,7 @@ import {
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import FileCopyIcon from "@mui/icons-material/FileCopy";
 import { useSnackbar } from "notistack";
 import { xmlToJSON } from "../../utils/sourceParsing2";
 import { useAppDispatch } from "../../hooks";
@@ -32,6 +33,7 @@ const ComponentParserPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [jsonXmlFile, setJsonXmlFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<HTMLImageElement | null>(null);
   const [uploaded, setUploaded] = useState(false);
 
   // 处理JSON/XML文件选择
@@ -56,6 +58,12 @@ const ComponentParserPanel: React.FC = () => {
       const fileType = file.type.split("/")[0];
       if (fileType === "image") {
         setImageFile(file);
+        // 创建图片预览
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        img.onload = () => {
+          setImagePreview(img);
+        };
         setActiveStep(1);
       } else {
         alert("请上传图片文件");
@@ -119,6 +127,7 @@ const ComponentParserPanel: React.FC = () => {
   const handleReset = () => {
     setJsonXmlFile(null);
     setImageFile(null);
+    setImagePreview(null);
     setUploaded(false);
     dispatch(resetNodeState());
     // 清除input值
@@ -156,21 +165,48 @@ const ComponentParserPanel: React.FC = () => {
             style={{ display: "none" }}
             onChange={handleJsonXmlFileChange}
           />
-          <CloudUploadIcon
-            sx={{ fontSize: 40, color: "primary.main", mb: 2 }}
-          />
-          <Typography variant="h6">选择JSON/XML文件</Typography>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mt: 1, textAlign: "center" }}
-          >
-            支持 .json 或 .xml 格式文件
-          </Typography>
-          {jsonXmlFile && (
-            <Typography variant="body2" sx={{ mt: 2, color: "primary.main" }}>
-              {jsonXmlFile.name}
-            </Typography>
+          {jsonXmlFile ? (
+            <Box sx={{ width: "100%", textAlign: "center" }}>
+              <Box
+                sx={{
+                  width: "120px",
+                  height: "120px",
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  margin: "0 auto 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  bgcolor: "primary.light",
+                  color: "primary.contrastText",
+                }}
+              >
+                <FileCopyIcon sx={{ fontSize: 60 }} />
+              </Box>
+              <Typography variant="h6" sx={{ mb: 1 }}>文件已选择</Typography>
+              <Typography variant="body2" sx={{ color: "primary.main", mb: 1 }}>
+                {jsonXmlFile.name}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {Math.round(jsonXmlFile.size / 1024)} KB
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <CloudUploadIcon
+                sx={{ fontSize: 40, color: "primary.main", mb: 2 }}
+              />
+              <Typography variant="h6">选择JSON/XML文件</Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 1, textAlign: "center" }}
+              >
+                支持 .json 或 .xml 格式文件
+              </Typography>
+            </>
           )}
         </Paper>
       </Grid>
@@ -202,19 +238,50 @@ const ComponentParserPanel: React.FC = () => {
             style={{ display: "none" }}
             onChange={handleImageFileChange}
           />
-          <UploadFileIcon sx={{ fontSize: 40, color: "primary.main", mb: 2 }} />
-          <Typography variant="h6">选择背景图片</Typography>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mt: 1, textAlign: "center" }}
-          >
-            支持JPG, PNG图片格式
-          </Typography>
-          {imageFile && (
-            <Typography variant="body2" sx={{ mt: 2, color: "primary.main" }}>
-              {imageFile.name}
-            </Typography>
+          {imageFile ? (
+            <Box sx={{ width: "100%", textAlign: "center" }}>
+              <Box
+                sx={{
+                  width: "120px",
+                  height: "120px",
+                  border: 1,
+                  borderColor: "divider",
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  margin: "0 auto 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  bgcolor: "grey.100",
+                }}
+              >
+                <img
+                  src={imagePreview?.src || URL.createObjectURL(imageFile)}
+                  alt="背景图片预览"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                  }}
+                />
+              </Box>
+              <Typography variant="h6" sx={{ mb: 1 }}>背景图片已选择</Typography>
+              <Typography variant="body2" sx={{ color: "primary.main" }}>
+                {imageFile.name}
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <UploadFileIcon sx={{ fontSize: 40, color: "primary.main", mb: 2 }} />
+              <Typography variant="h6">选择背景图片</Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 1, textAlign: "center" }}
+              >
+                支持JPG, PNG图片格式
+              </Typography>
+            </>
           )}
         </Paper>
       </Grid>
