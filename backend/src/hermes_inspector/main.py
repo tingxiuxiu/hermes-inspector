@@ -15,12 +15,12 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from ta_inspector.core import config
-from ta_inspector.api.android import android_router
-from ta_inspector.api.harmony import harmony_router
-from ta_inspector.api.image_calculate import image_handler_router
-from ta_inspector.api.static import static_router
-from ta_inspector.api.system import system_router
+from .core import config
+from .api.android import android_router
+from .api.harmony import harmony_router
+from .api.image_calculate import image_handler_router
+from .api.static import static_router
+from .api.system import system_router
 
 
 l_config = {

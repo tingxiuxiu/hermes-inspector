@@ -33,3 +33,4 @@ class Config(BaseSettings):
         sn="",
         device_type=DeviceType.ANDROID,
     )
+    ocr_access_token: str = ""
