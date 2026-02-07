@@ -57,13 +57,13 @@ class MatchResult(TypedDict):
     confidence: float
 
 
-class ImageCalculate:
+class ImageCalculateService:
     """Image calculation service for template matching operations."""
 
     def __init__(self) -> None:
         pass
 
-    def locator(
+    def match(
         self,
         image_path: str,
         template_path: str,
@@ -71,6 +71,8 @@ class ImageCalculate:
         algorithm: MatchAlgorithm = MatchAlgorithm.TM_CCOEFF_NORMED,
     ) -> list[MatchResult]:
         """
+        Match template in image using OpenCV template matching.
+
         Locate template in image using OpenCV template matching.
 
         This is the main entry point for template matching. It orchestrates the entire

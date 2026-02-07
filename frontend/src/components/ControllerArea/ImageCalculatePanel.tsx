@@ -7,15 +7,12 @@ import {
   Stepper,
   Step,
   StepLabel,
-  Grid,
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
   CircularProgress,
   Card,
   CardMedia,
-  CardContent,
   IconButton,
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
@@ -32,9 +29,9 @@ const ImageCalculatePanel: React.FC = () => {
   const [resultOpen, setResultOpen] = useState(false);
   const [resultData, setResultData] = useState<{
     imagePath: string;
-    position: string;
-    similarity: string;
+    result: object;
   } | null>(null);
+  const [zoomImageOpen, setZoomImageOpen] = useState(false);
   
   const { enqueueSnackbar } = useSnackbar();
 
@@ -95,18 +92,16 @@ const ImageCalculatePanel: React.FC = () => {
     try {
         // Mocking API call for now as user requested frontend implementation
         // authentic endpoint would be /api/v1/image/match or similar
-        // await axios.post("/api/v1/image/match", formData);
-        
-        // Simulating network delay and response
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        const mockResponse = {
-            imagePath: targetImage.preview, // In real app this would be a URL from server
-            position: "{x: 100, y: 200, w: 50, h: 50}",
-            similarity: "98.5%"
-        };
-
-        setResultData(mockResponse);
+        const response = await axios.post("/api/v1/calculate/match", formData);
+        if (response.data.success) {
+            enqueueSnackbar("计算成功", { variant: "success" });
+            setResultData({
+                imagePath: "http://" + window.location.host + "/api/v1/system/resource/?image=" + response.data.result?.imageFileName || "",
+                result: response.data.result,
+            });
+        } else {
+            enqueueSnackbar("计算失败", { variant: "error" });
+        }
         setResultOpen(true);
 
     } catch (error) {
@@ -216,7 +211,7 @@ const ImageCalculatePanel: React.FC = () => {
                     准备就绪
                 </Typography>
                 <Typography variant="body1" color="text.secondary" paragraph>
-                    目标图片已选择, {resourceImage ? "资源图已选择" : "未选择资源图"}. 点击下方按钮开始计算。
+                    目标图片已选择, {resourceImage ? "资源图已选择" : "未选择资源图,自动屏幕截图"}. 点击下方按钮开始计算。
                 </Typography>
                 
                 <Box sx={{ display: "flex", justifyContent: "center", gap: 2, mt: 4 }}>
@@ -261,51 +256,120 @@ const ImageCalculatePanel: React.FC = () => {
       </Box>
 
       {/* Result Modal */}
-      <Dialog open={resultOpen} onClose={() => setResultOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>计算结果</DialogTitle>
-        <DialogContent dividers>
-            <Grid container spacing={2}>
-                <Grid item xs={12} md={7}>
+      <Dialog 
+        open={resultOpen} 
+        onClose={() => setResultOpen(false)} 
+        maxWidth="lg" 
+        fullWidth
+        sx={{
+          '& .MuiPaper-root': {
+            maxHeight: '60vh',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogContent dividers sx={{ height: 'calc(60vh - 120px)', overflow: 'hidden' }}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, height: '100%' }}>
+                {/* 左侧图片 */}
+                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <Typography variant="h6" gutterBottom>标记结果</Typography>
                     <Box sx={{ 
-                        width: '100%', 
-                        height: 400, 
+                        flex: 1, 
                         bgcolor: 'black', 
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center',
                         borderRadius: 1,
-                        overflow: 'hidden'
-                    }}>
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        '&:hover': {
+                            opacity: 0.9
+                        }
+                    }} onClick={() => setZoomImageOpen(true)}>
                         {resultData && (
                             <img 
                                 src={resultData.imagePath} 
                                 alt="Result" 
-                                style={{ maxWidth: '100%', maxHeight: '100%' }} 
+                                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                                title="点击放大查看"
                             />
                         )}
                     </Box>
-                </Grid>
-                <Grid item xs={12} md={5}>
+                </Box>
+                {/* 右侧 JSON 结果 */}
+                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <Typography variant="h6" gutterBottom>详细信息</Typography>
-                    {resultData && (
-                        <Box component="dl">
-                             <Typography component="dt" color="text.secondary" variant="subtitle2">位置信息</Typography>
-                             <Typography component="dd" variant="body1" sx={{ mb: 2, ml: 0 }}>{resultData.position}</Typography>
-                             
-                             <Typography component="dt" color="text.secondary" variant="subtitle2">相似度</Typography>
-                             <Typography component="dd" variant="body1" sx={{ mb: 2, ml: 0 }}>
-                                <Typography component="span" color="primary.main" fontWeight="bold">
-                                    {resultData.similarity}
-                                </Typography>
-                             </Typography>
-                        </Box>
-                    )}
-                </Grid>
-            </Grid>
+                    <Box sx={{ 
+                        flex: 1, 
+                        bgcolor: '#f5f5f5', 
+                        borderRadius: 1,
+                        overflow: 'auto',
+                        p: 2,
+                        fontFamily: '"Courier New", monospace',
+                        fontSize: '0.875rem',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                        border: 1,
+                        borderColor: 'divider'
+                    }}>
+                        {resultData ? (
+                            <pre style={{ margin: 0, color: '#333' }}>
+                                {JSON.stringify(resultData.result, null, 2)}
+                            </pre>
+                        ) : (
+                            <Typography variant="body2" color="text.secondary">
+                                计算中...
+                            </Typography>
+                        )}
+                    </Box>
+                </Box>
+            </Box>
         </DialogContent>
         <DialogActions>
             <Button onClick={() => setResultOpen(false)}>关闭</Button>
         </DialogActions>
+      </Dialog>
+
+      {/* 图片放大弹窗 */}
+      <Dialog
+        open={zoomImageOpen}
+        onClose={() => setZoomImageOpen(false)}
+        fullWidth
+        maxWidth="xl"
+        sx={{
+          '& .MuiPaper-root': {
+            bgcolor: 'black',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            maxWidth: '100vw',
+            maxHeight: '100vh',
+            borderRadius: 0
+          }
+        }}
+      >
+        <Box sx={{ 
+          width: '100%', 
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 2,
+          cursor: 'pointer'
+        }} onClick={() => setZoomImageOpen(false)}>
+          {resultData && (
+            <img
+              src={resultData.imagePath}
+              alt="Zoomed Result"
+              style={{
+                maxWidth: '90vw',
+                maxHeight: '90vh',
+                objectFit: 'contain'
+              }}
+            />
+          )}
+        </Box>
       </Dialog>
     </Box>
   );

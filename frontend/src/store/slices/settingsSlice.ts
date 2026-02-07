@@ -3,18 +3,18 @@ import type { PayloadAction } from "@reduxjs/toolkit";
 
 // 设置状态接口
 export interface SettingsState {
-  apiKey: string;
-  secretKey: string;
-  openai: string;
-  gemini: string;
+  apiKey: string | null;
+  secretKey: string | null;
+  openai: string | null;
+  gemini: string | null;
 }
 
 // 初始状态
 const initialState: SettingsState = {
-  apiKey: "",
-  secretKey: "",
-  openai: "",
-  gemini: "",
+  apiKey: null,
+  secretKey: null,
+  openai: null,
+  gemini: null,
 };
 
 // 创建设置切片

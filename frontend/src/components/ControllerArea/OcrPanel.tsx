@@ -23,8 +23,11 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DeleteIcon from "@mui/icons-material/Delete";
 import DocumentScannerIcon from "@mui/icons-material/DocumentScanner";
 import { useSnackbar } from "notistack";
+import axios from "axios";
+import { useAppDispatch, useAppSelector } from "../../hooks";
 
 const OcrPanel: React.FC = () => {
+  const { apiKey, secretKey } = useAppSelector((state) => state.settings);
   const [activeStep, setActiveStep] = useState(0);
   const [autoScreenshot, setAutoScreenshot] = useState(false);
   const [imageState, setImageState] = useState<{ file: File; preview: string } | null>(null);
@@ -32,8 +35,9 @@ const OcrPanel: React.FC = () => {
   const [resultOpen, setResultOpen] = useState(false);
   const [resultData, setResultData] = useState<{
     imagePath: string;
-    locationInfo: string;
+    result: object;
   } | null>(null);
+  const [zoomImageOpen, setZoomImageOpen] = useState(false);
   
   const { enqueueSnackbar } = useSnackbar();
 
@@ -81,31 +85,26 @@ const OcrPanel: React.FC = () => {
     
     // Construct FormData
     const formData = new FormData();
+    if (apiKey && secretKey) {
+        formData.append("api_key", apiKey);
+        formData.append("secret_key", secretKey);
+    }
     if (imageState) {
         formData.append("imageFile", imageState.file);
     }
     formData.append("autoScreenshot", String(autoScreenshot));
 
     try {
-        // Mocking API call
-        // authentic endpoint would be /api/v1/ocr/recognize
-        // await axios.post("/api/v1/ocr/recognize", formData);
-        
-        // Simulating network delay and response
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        const mockResponse = {
-            imagePath: imageState ? imageState.preview : "https://via.placeholder.com/400x300?text=Screenshot+Result", 
-            locationInfo: JSON.stringify({
-                items: [
-                    { text: "Example Text", bounds: [100, 200, 300, 40] },
-                    { text: "Detected ID: 12345", bounds: [100, 250, 200, 30] }
-                ],
-                confidence: 0.98
-            }, null, 2)
-        };
-
-        setResultData(mockResponse);
+        const response = await axios.post("/api/v1/calculate/ocr", formData);
+        if (response.data.success) {
+            enqueueSnackbar("识别成功", { variant: "success" });
+            setResultData({
+                imagePath: "http://" + window.location.host + "/api/v1/system/resource/?image=" + response.data.result?.imageFileName || "", 
+                result: response.data.result
+            });
+        } else {
+            enqueueSnackbar("识别失败", { variant: "error" });
+        }
         setResultOpen(true);
 
     } catch (error) {
@@ -284,47 +283,122 @@ const OcrPanel: React.FC = () => {
         )}
       </Box>
 
-      {/* Result Modal */}
-      <Dialog open={resultOpen} onClose={() => setResultOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>识别结果</DialogTitle>
-        <DialogContent dividers>
-            <Grid container spacing={2}>
-                <Grid size={{ xs: 12, md: 7 }}>
-                    <Box sx={{ 
-                        width: '100%', 
-                        height: 400, 
-                        bgcolor: 'white', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center',
-                        borderRadius: 1,
-                        overflow: 'hidden'
-                    }}>
-                        {resultData && (
-                            <img 
-                                src={resultData.imagePath} 
-                                alt="Result" 
-                                style={{ maxWidth: '100%', maxHeight: '100%' }} 
-                            />
-                        )}
-                    </Box>
-                </Grid>
-                <Grid size={{ xs: 12, md: 5 }}>
-                    <Typography variant="h6" gutterBottom>位置信息</Typography>
-                    {resultData && (
-                        <Paper variant="outlined" sx={{ p: 2, maxHeight: 400, overflow: 'auto', bgcolor: 'grey.50' }}>
-                            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.875rem' }}>
-                                {resultData.locationInfo}
-                            </pre>
-                        </Paper>
-                    )}
-                </Grid>
-            </Grid>
-        </DialogContent>
-        <DialogActions>
-            <Button onClick={() => setResultOpen(false)}>关闭</Button>
-        </DialogActions>
-      </Dialog>
+            {/* Result Modal */}
+            <Dialog 
+              open={resultOpen} 
+              onClose={() => setResultOpen(false)} 
+              maxWidth="lg" 
+              fullWidth
+              sx={{
+                '& .MuiPaper-root': {
+                  maxHeight: '60vh',
+                  overflow: 'hidden'
+                }
+              }}
+            >
+              <DialogContent dividers sx={{ height: 'calc(60vh - 120px)', overflow: 'hidden' }}>
+                  <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, height: '100%' }}>
+                      {/* 左侧图片 */}
+                      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <Typography variant="h6" gutterBottom>标记结果</Typography>
+                          <Box sx={{ 
+                              flex: 1, 
+                              bgcolor: 'black', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              borderRadius: 1,
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                              '&:hover': {
+                                  opacity: 0.9
+                              }
+                          }} onClick={() => setZoomImageOpen(true)}>
+                              {resultData && (
+                                  <img 
+                                      src={resultData.imagePath} 
+                                      alt="Result" 
+                                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                                      title="点击放大查看"
+                                  />
+                              )}
+                          </Box>
+                      </Box>
+                      {/* 右侧 JSON 结果 */}
+                      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                          <Typography variant="h6" gutterBottom>详细信息</Typography>
+                          <Box sx={{ 
+                              flex: 1, 
+                              bgcolor: '#f5f5f5', 
+                              borderRadius: 1,
+                              overflow: 'auto',
+                              p: 2,
+                              fontFamily: '"Courier New", monospace',
+                              fontSize: '0.875rem',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-all',
+                              border: 1,
+                              borderColor: 'divider'
+                          }}>
+                              {resultData ? (
+                                  <pre style={{ margin: 0, color: '#333' }}>
+                                      {JSON.stringify(resultData.result, null, 2)}
+                                  </pre>
+                              ) : (
+                                  <Typography variant="body2" color="text.secondary">
+                                      计算中...
+                                  </Typography>
+                              )}
+                          </Box>
+                      </Box>
+                  </Box>
+              </DialogContent>
+              <DialogActions>
+                  <Button onClick={() => setResultOpen(false)}>关闭</Button>
+              </DialogActions>
+            </Dialog>
+      
+            {/* 图片放大弹窗 */}
+            <Dialog
+              open={zoomImageOpen}
+              onClose={() => setZoomImageOpen(false)}
+              fullWidth
+              maxWidth="xl"
+              sx={{
+                '& .MuiPaper-root': {
+                  bgcolor: 'black',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  maxWidth: '100vw',
+                  maxHeight: '100vh',
+                  borderRadius: 0
+                }
+              }}
+            >
+              <Box sx={{ 
+                width: '100%', 
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 2,
+                cursor: 'pointer'
+              }} onClick={() => setZoomImageOpen(false)}>
+                {resultData && (
+                  <img
+                    src={resultData.imagePath}
+                    alt="Zoomed Result"
+                    style={{
+                      maxWidth: '90vw',
+                      maxHeight: '90vh',
+                      objectFit: 'contain'
+                    }}
+                  />
+                )}
+              </Box>
+            </Dialog>
     </Box>
   );
 };
