@@ -1,5 +1,7 @@
 import os
 import cv2
+import json
+from typing import Dict, Any, List
 
 from fastapi import APIRouter, File, UploadFile, Form
 
@@ -59,8 +61,7 @@ def crop_image(data: CropImageRequest) -> CropImageResponse:
 @image_handler_router.post("/ocr")
 async def image_ocr(
     image: UploadFile | None = File(None, description="图片文件"),
-    api_key: str = Form(..., description="百度OCR api_key"),
-    api_secret: str = Form(..., description="百度OCR api_secret"),
+    access_token: str = Form(..., description="百度OCR access_token"),
 ) -> OcrResponse:
     try:
         if image is None:
@@ -71,10 +72,10 @@ async def image_ocr(
             contents = await image.read()
             with open(img_path, "wb") as f:
                 f.write(contents)
-        ocr_service = OcrService(api_key, api_secret)
+        ocr_service = OcrService(access_token)
         with open(img_path, "rb") as f:
             image_bytes = f.read()
-        result = ocr_service.baidu_recognize(image_bytes)
+        result: Dict[str, Any] = ocr_service.baidu_recognize(image_bytes)
         # 根据结果在图片上绘制矩形框, 右上角用圆角方框红色背景,白色字体标记置信度
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.5
@@ -90,12 +91,13 @@ async def image_ocr(
             )
 
         # 绘制矩形框和置信度标记
-        for item in result["words_result"]:
-            location = item["location"]
-            left = location["left"]
-            top = location["top"]
-            width = location["width"]
-            height = location["height"]
+        words_result: List[Dict[str, Any]] = result.get("words_result", [])
+        for item in words_result:
+            location: Dict[str, int] = item.get("location", {})
+            left: int = location.get("left", 0)
+            top: int = location.get("top", 0)
+            width: int = location.get("width", 0)
+            height: int = location.get("height", 0)
 
             # 绘制矩形框
             cv2.rectangle(
@@ -108,8 +110,9 @@ async def image_ocr(
 
             # 绘制置信度标记
             if "probability" in item:
-                confidence = item["probability"].get("average", 0)
-                confidence_text = f"{confidence:.2f}"
+                probability: Dict[str, float] = item.get("probability", {})
+                confidence: float = probability.get("average", 0.0)
+                confidence_text: str = f"{confidence:.2f}"
 
                 # 计算文本大小
                 (text_width, text_height), _ = cv2.getTextSize(
@@ -117,11 +120,11 @@ async def image_ocr(
                 )
 
                 # 设置标记位置（右上角）
-                padding = 5
-                rect_width = text_width + 2 * padding
-                rect_height = text_height + 2 * padding
-                rect_x = left + width - rect_width
-                rect_y = top
+                padding: int = 5
+                rect_width: int = text_width + 2 * padding
+                rect_height: int = text_height + 2 * padding
+                rect_x: int = left + width - rect_width
+                rect_y: int = top
 
                 # 确保标记在图片范围内
                 if rect_x < 0:
@@ -139,8 +142,8 @@ async def image_ocr(
                 )
 
                 # 绘制白色文本
-                text_x = rect_x + padding
-                text_y = rect_y + text_height + padding
+                text_x: int = rect_x + padding
+                text_y: int = rect_y + text_height + padding
                 cv2.putText(
                     im_read,
                     confidence_text,
@@ -157,11 +160,13 @@ async def image_ocr(
         cv2.imwrite(str(marked_image_path), im_read)
         # 更新结果，添加标记图片路径
         result["marked_image"] = marked_image_path.name
+        # 将结果转换为 JSON 字符串
+        result_json: str = json.dumps(result, ensure_ascii=False, indent=2)
         return OcrResponse(
             success=True,
             code=200,
             message="OCR Success",
-            result=result,
+            result=result_json,
         )
     except Exception as e:
         logger.exception(f"OCR Failed, {e}")

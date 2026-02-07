@@ -4,14 +4,16 @@ import base64
 from ..core import config
 
 
+from typing import Dict, Any
+
+
 class OcrService:
-    def __init__(self, api_key: str, api_secret: str):
+    def __init__(self, access_token: str):
         self._ocr_url = "https://aip.baidubce.com/rest/2.0/ocr/v1/accurate"
         self._client = httpx.Client(timeout=30)
-        if config.ocr_access_token == "":
-            self.access_token(api_key, api_secret)
+        config.ocr_access_token = access_token
 
-    def baidu_recognize(self, image: bytes) -> str:
+    def baidu_recognize(self, image: bytes) -> Dict[str, Any]:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         data = {
             "image": base64.b64encode(image).decode("utf-8"),
