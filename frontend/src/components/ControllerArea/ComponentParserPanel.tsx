@@ -3,17 +3,21 @@ import axios from "axios";
 import {
   Box,
   Button,
-  Grid,
-  Typography,
   Paper,
+  Typography,
   Stepper,
   Step,
   StepLabel,
+  CircularProgress,
+  Card,
+  CardMedia,
+  IconButton,
 } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import DeleteIcon from "@mui/icons-material/Delete";
 import FileCopyIcon from "@mui/icons-material/FileCopy";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useSnackbar } from "notistack";
 import { xmlToJSON } from "../../utils/sourceParsing2";
 import { useAppDispatch } from "../../hooks";
@@ -26,63 +30,79 @@ import {
 import { setActiveTab } from "../../store/slices/controlTabSlice";
 
 const ComponentParserPanel: React.FC = () => {
-  // 状态管理
   const dispatch = useAppDispatch();
   const { enqueueSnackbar } = useSnackbar();
-  const [activeStep, setActiveStep] = useState(-1);
+  
+  const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  
   const [jsonXmlFile, setJsonXmlFile] = useState<File | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<HTMLImageElement | null>(null);
-  const [uploaded, setUploaded] = useState(false);
+  const [imageState, setImageState] = useState<{ file: File; preview: string } | null>(null);
 
-  // 处理JSON/XML文件选择
+  const steps = ["选择 XML/JSON 文件", "选择背景图片", "解析文件"];
+
   const handleJsonXmlFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const fileType = file.name.split(".").pop()?.toLowerCase();
       if (fileType === "json" || fileType === "xml") {
         setJsonXmlFile(file);
-        setActiveStep(0);
       } else {
-        alert("请上传JSON或XML文件");
+        enqueueSnackbar("请上传JSON或XML文件", { variant: "warning" });
         e.target.value = "";
       }
     }
   };
 
-  // 处理图片文件选择
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const fileType = file.type.split("/")[0];
       if (fileType === "image") {
-        setImageFile(file);
-        // 创建图片预览
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
-        img.onload = () => {
-          setImagePreview(img);
-        };
-        setActiveStep(1);
+        setImageState({
+            file,
+            preview: URL.createObjectURL(file)
+        });
       } else {
-        alert("请上传图片文件");
+        enqueueSnackbar("请上传图片文件", { variant: "warning" });
         e.target.value = "";
       }
     }
   };
 
-  // 处理文件上传
-  const handleUpload = async () => {
-    if (!jsonXmlFile || !imageFile) return;
+  const handleRemoveFile = (type: "json" | "image") => {
+      if (type === "json") {
+          setJsonXmlFile(null);
+      } else {
+          setImageState(null);
+      }
+  };
+
+  const handleNext = () => {
+    if (activeStep === 0 && !jsonXmlFile) {
+        enqueueSnackbar("请选择 JSON/XML 文件", { variant: "warning" });
+        return;
+    }
+    if (activeStep === 1 && !imageState) {
+        enqueueSnackbar("请选择背景图片", { variant: "warning" });
+        return;
+    }
+    setActiveStep(prev => prev + 1);
+  };
+
+  const handleBack = () => {
+    setActiveStep(prev => prev - 1);
+  };
+
+  const handleParse = async () => {
+    if (!jsonXmlFile || !imageState) return;
+    
     setLoading(true);
-    // 创建FormData并上传文件
     const formData = new FormData();
     formData.append("jsonXmlFile", jsonXmlFile);
-    formData.append("imageFile", imageFile);
+    formData.append("imageFile", imageState.file);
+
     try {
-      // 这里应该是实际的上传API调用
-      console.log("上传文件:", formData);
       const response = await axios.post(
         "/api/v1/system/upload-parse-files",
         formData,
@@ -92,8 +112,8 @@ const ComponentParserPanel: React.FC = () => {
           },
         }
       );
+
       if (response.data.code === 200) {
-        setActiveStep(2);
         dispatch(resetNodeState());
         dispatch(
           setScreenSize({
@@ -112,6 +132,7 @@ const ComponentParserPanel: React.FC = () => {
           })
         );
         dispatch(setActiveTab("1"));
+        enqueueSnackbar("解析成功", { variant: "success" });
       } else {
         enqueueSnackbar(response.data.message, { variant: "error" });
       }
@@ -123,227 +144,175 @@ const ComponentParserPanel: React.FC = () => {
     }
   };
 
-  // 重置到初始状态
-  const handleReset = () => {
-    setJsonXmlFile(null);
-    setImageFile(null);
-    setImagePreview(null);
-    setUploaded(false);
-    dispatch(resetNodeState());
-    // 清除input值
-    const fileInputs = document.querySelectorAll('input[type="file"]');
-    fileInputs.forEach((input) => ((input as HTMLInputElement).value = ""));
+  const renderUploadBox = (type: "json" | "image") => {
+      const hasFile = type === "json" ? !!jsonXmlFile : !!imageState;
+      const title = type === "json" ? "XML/JSON 文件" : "背景图片";
+      
+      return (
+        <Paper
+            variant="outlined"
+            sx={{
+            p: 3,
+            borderStyle: "dashed",
+            borderColor: hasFile ? "success.main" : "grey.400",
+            backgroundColor: hasFile ? "rgba(76, 175, 80, 0.04)" : "transparent",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: 300,
+            cursor: "pointer",
+            position: "relative",
+            "&:hover": {
+                borderColor: "primary.main",
+                backgroundColor: "rgba(25, 118, 210, 0.04)",
+            },
+            }}
+            onClick={() => !hasFile && document.getElementById(`file-upload-${type}`)?.click()}
+        >
+            <input
+                id={`file-upload-${type}`}
+                type="file"
+                accept={type === "json" ? ".json,.xml" : "image/*"}
+                style={{ display: "none" }}
+                onChange={type === "json" ? handleJsonXmlFileChange : handleImageFileChange}
+            />
+
+            {hasFile ? (
+                <Box sx={{ width: "100%", height: "100%", textAlign: "center", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{position: 'absolute', top: 10, right: 10}}>
+                        <IconButton onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveFile(type);
+                        }}>
+                            <DeleteIcon color="error" />
+                        </IconButton>
+                    </Box>
+                    
+                    {type === "json" ? (
+                        <>
+                             <Box
+                                sx={{
+                                width: 80,
+                                height: 80,
+                                borderRadius: 2,
+                                bgcolor: "primary.light",
+                                color: "primary.contrastText",
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                mb: 2
+                                }}
+                            >
+                                <FileCopyIcon sx={{ fontSize: 40 }} />
+                            </Box>
+                            <Typography variant="subtitle1" sx={{ mt: 2 }}>
+                                {jsonXmlFile?.name}
+                            </Typography>
+                             <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                                {jsonXmlFile ? Math.round(jsonXmlFile.size / 1024) : 0} KB
+                            </Typography>
+                        </>
+                    ) : (
+                        <>
+                             <img
+                                src={imageState?.preview}
+                                alt="Preview"
+                                style={{
+                                    maxWidth: "100%",
+                                    maxHeight: 250,
+                                    objectFit: "contain",
+                                    borderRadius: 4,
+                                    boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
+                                }}
+                            />
+                            <Typography variant="subtitle1" sx={{ mt: 2 }}>
+                                {imageState?.file.name}
+                            </Typography>
+                        </>
+                    )}
+                </Box>
+            ) : (
+                <>
+                {type === "json" ? <UploadFileIcon sx={{ fontSize: 60, color: "text.secondary", mb: 2 }} /> : <CloudUploadIcon sx={{ fontSize: 60, color: "text.secondary", mb: 2 }} />}
+                <Typography variant="h6" color="text.secondary">
+                    点击上传 {title} (必选)
+                </Typography>
+                </>
+            )}
+        </Paper>
+      );
   };
 
-  // 渲染上传区域
-  const renderUploadZone = () => (
-    <Grid container spacing={3} alignItems="stretch">
-      {/* 左侧JSON/XML上传 */}
-      <Grid size={4}>
-        <Paper
-          elevation={2}
-          sx={{
-            p: 3,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            border: 2,
-            borderStyle: "dashed",
-            borderColor: jsonXmlFile ? "primary.main" : "grey.300",
-            borderRadius: 2,
-            transition: "all 0.3s ease",
-            height: 200,
-            cursor: "pointer",
-          }}
-          onClick={() => document.getElementById("json-xml-upload")?.click()}
-        >
-          <input
-            id="json-xml-upload"
-            type="file"
-            accept=".json,.xml"
-            style={{ display: "none" }}
-            onChange={handleJsonXmlFileChange}
-          />
-          {jsonXmlFile ? (
-            <Box sx={{ width: "100%", textAlign: "center" }}>
-              <Box
-                sx={{
-                  width: "120px",
-                  height: "120px",
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 4,
-                  overflow: "hidden",
-                  margin: "0 auto 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  bgcolor: "primary.light",
-                  color: "primary.contrastText",
-                }}
-              >
-                <FileCopyIcon sx={{ fontSize: 60 }} />
-              </Box>
-              <Typography variant="h6" sx={{ mb: 1 }}>文件已选择</Typography>
-              <Typography variant="body2" sx={{ color: "primary.main", mb: 1 }}>
-                {jsonXmlFile.name}
-              </Typography>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {Math.round(jsonXmlFile.size / 1024)} KB
-              </Typography>
-            </Box>
-          ) : (
-            <>
-              <CloudUploadIcon
-                sx={{ fontSize: 40, color: "primary.main", mb: 2 }}
-              />
-              <Typography variant="h6">选择JSON/XML文件</Typography>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mt: 1, textAlign: "center" }}
-              >
-                支持 .json 或 .xml 格式文件
-              </Typography>
-            </>
-          )}
-        </Paper>
-      </Grid>
-
-      {/* 右侧图片上传 */}
-      <Grid size={4}>
-        <Paper
-          elevation={2}
-          sx={{
-            p: 3,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            border: 2,
-            borderStyle: "dashed",
-            borderColor: imageFile ? "primary.main" : "grey.300",
-            borderRadius: 2,
-            transition: "all 0.3s ease",
-            height: 200,
-            cursor: "pointer",
-          }}
-          onClick={() => document.getElementById("image-upload")?.click()}
-        >
-          <input
-            id="image-upload"
-            type="file"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={handleImageFileChange}
-          />
-          {imageFile ? (
-            <Box sx={{ width: "100%", textAlign: "center" }}>
-              <Box
-                sx={{
-                  width: "120px",
-                  height: "120px",
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 4,
-                  overflow: "hidden",
-                  margin: "0 auto 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  bgcolor: "grey.100",
-                }}
-              >
-                <img
-                  src={imagePreview?.src || URL.createObjectURL(imageFile)}
-                  alt="背景图片预览"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                  }}
-                />
-              </Box>
-              <Typography variant="h6" sx={{ mb: 1 }}>背景图片已选择</Typography>
-              <Typography variant="body2" sx={{ color: "primary.main" }}>
-                {imageFile.name}
-              </Typography>
-            </Box>
-          ) : (
-            <>
-              <UploadFileIcon sx={{ fontSize: 40, color: "primary.main", mb: 2 }} />
-              <Typography variant="h6">选择背景图片</Typography>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mt: 1, textAlign: "center" }}
-              >
-                支持JPG, PNG图片格式
-              </Typography>
-            </>
-          )}
-        </Paper>
-      </Grid>
-
-      {/* 上传按钮 - 仅当两个文件都选择后显示 */}
-      {jsonXmlFile && imageFile && !uploaded && (
-        // 垂直居中
-        <Grid size={4} sx={{ justifyContent: "center" }}>
-          <Box>
-            <Button
-              variant="contained"
-              color="primary"
-              size="large"
-              startIcon={<CloudUploadIcon />}
-              onClick={handleUpload}
-              loading={loading}
-              loadingPosition="start"
-              sx={{ minWidth: 200 }}
-            >
-              解析文件
-            </Button>
-          </Box>
-        </Grid>
-      )}
-
-      {/* 重置按钮 - 仅当上传后 */}
-      {jsonXmlFile && imageFile && uploaded && (
-        // 垂直居中
-        <Grid size={4} sx={{ justifyContent: "center" }}>
-          <Box sx={{ marginTop: "35%" }}>
-            <Button
-              variant="contained"
-              color="primary"
-              size="large"
-              startIcon={<RefreshIcon />}
-              onClick={handleReset}
-              loading={loading}
-              loadingPosition="start"
-              sx={{ minWidth: 200 }}
-            >
-              重置文件
-            </Button>
-          </Box>
-        </Grid>
-      )}
-    </Grid>
-  );
-
   return (
-    <Box>
-      <Stepper activeStep={activeStep} sx={{ mb: 3 }} alternativeLabel>
-        <Step completed={activeStep >= 0}>
-          <StepLabel>选择xml/json文件</StepLabel>
-        </Step>
-        <Step completed={activeStep >= 1}>
-          <StepLabel>选择png/jped图片</StepLabel>
-        </Step>
-        <Step completed={activeStep >= 2}>
-          <StepLabel>解析文件</StepLabel>
-        </Step>
+    <Box sx={{ p: 2, height: "100%", display: "flex", flexDirection: "column" }}>
+      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
+        {steps.map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
       </Stepper>
-      {renderUploadZone()}
+
+      <Box sx={{ flex: 1, overflow: "auto" }}>
+          {activeStep === 0 && (
+             <Box sx={{ maxWidth: 600, mx: "auto" }}>
+                 {renderUploadBox("json")}
+             </Box>
+          )}
+          {activeStep === 1 && (
+              <Box sx={{ maxWidth: 600, mx: "auto" }}>
+                  {renderUploadBox("image")}
+              </Box>
+          )}
+          {activeStep === 2 && (
+               <Box sx={{ maxWidth: 600, mx: "auto", textAlign: "center", py: 5 }}>
+                 <PlayArrowIcon sx={{ fontSize: 80, color: "primary.main", mb: 3 }} />
+                 <Typography variant="h5" gutterBottom>
+                    准备就绪
+                 </Typography>
+                 <Typography variant="body1" color="text.secondary" paragraph>
+                     文件与图片已就绪，点击下方按钮开始解析页面结构。
+                 </Typography>
+
+                 <Box sx={{ display: "flex", justifyContent: "center", gap: 3, mt: 4 }}>
+                    <Card variant="outlined" sx={{ width: 120, p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                         <FileCopyIcon color="action" fontSize="large" sx={{mb: 1}}/>
+                         <Typography variant="caption" noWrap sx={{maxWidth: '100%'}}>{jsonXmlFile?.name}</Typography>
+                    </Card>
+                    <Card variant="outlined" sx={{ width: 120, p: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                         <CardMedia component="img" height="40" image={imageState?.preview} sx={{objectFit: 'contain', mb: 1}} />
+                         <Typography variant="caption" noWrap sx={{maxWidth: '100%'}}>{imageState?.file.name}</Typography>
+                    </Card>
+                 </Box>
+               </Box>
+          )}
+      </Box>
+
+      {/* Footer Actions */}
+      <Box sx={{ display: "flex", justifyContent: "space-between", mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
+        <Button
+            disabled={activeStep === 0}
+            onClick={handleBack}
+            variant="outlined"
+        >
+            上一步
+        </Button>
+        {activeStep === steps.length - 1 ? (
+             <Button
+                variant="contained"
+                onClick={handleParse}
+                disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <PlayArrowIcon />}
+             >
+                {loading ? "解析中..." : "开始解析"}
+             </Button>
+        ) : (
+            <Button variant="contained" onClick={handleNext}>
+                下一步
+            </Button>
+        )}
+      </Box>
     </Box>
   );
 };
