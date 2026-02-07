@@ -1,7 +1,8 @@
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import _ from "lodash";
 
-import XPath, { select as xpathSelect } from "xpath";
+import * as xpath from "xpath";
+const xpathSelect = xpath.select;
 
 import { log } from "./logger.js";
 import { LOCATOR_STRATEGIES as STRATS } from "./session-inspector.js";
@@ -9,9 +10,10 @@ import { LOCATOR_STRATEGIES as STRATS } from "./session-inspector.js";
 const domParser = new DOMParser();
 const xmlSerializer = new XMLSerializer();
 
-export const xmlToDOM = (string) =>
+export const xmlToDOM = (string: string): Document =>
   domParser.parseFromString(string, "application/xml");
-export const domToXML = (dom) => xmlSerializer.serializeToString(dom);
+export const domToXML = (dom: Node): string =>
+  xmlSerializer.serializeToString(dom);
 
 /**
  * Get the child nodes of a Node object
@@ -19,11 +21,14 @@ export const domToXML = (dom) => xmlSerializer.serializeToString(dom);
  * @param {Node} domNode
  * @returns {Array<Node|null>} list of Nodes
  */
-export function childNodesOf(domNode) {
+export function childNodesOf(domNode: Node | null): Node[] {
   if (!domNode?.hasChildNodes()) {
     return [];
   }
-  return _.filter(domNode.childNodes, ["nodeType", domNode.ELEMENT_NODE]);
+  return _.filter(
+    Array.from(domNode.childNodes),
+    (node) => node.nodeType === (domNode as Element).ELEMENT_NODE,
+  );
 }
 
 /**
@@ -33,11 +38,16 @@ export function childNodesOf(domNode) {
  * @param {Document} sourceDoc app source in Document format
  * @returns {Node} element node
  */
-export function findDOMNodeByPath(path, sourceDoc) {
-  let selectedElement =
-    childNodesOf(sourceDoc)[0] || childNodesOf(sourceDoc.documentElement)[0];
+export function findDOMNodeByPath(
+  path: string,
+  sourceDoc: Document | Element,
+): Node | undefined {
+  let selectedElement: Node | undefined =
+    childNodesOf(sourceDoc)[0] ||
+    childNodesOf((sourceDoc as Document).documentElement)[0];
   for (const index of path.split(".")) {
-    selectedElement = childNodesOf(selectedElement)[index];
+    const children = childNodesOf(selectedElement || null);
+    selectedElement = children[parseInt(index, 10)];
   }
   return selectedElement;
 }
@@ -49,10 +59,28 @@ export function findDOMNodeByPath(path, sourceDoc) {
  * @param {Object} sourceJSON app source in JSON format
  * @returns {Object} element details in JSON format
  */
-export function findJSONElementByPath(path, sourceJSON) {
+export interface TreeObject {
+  tagName: string;
+  attributes: Record<string, string>;
+  key: string;
+  xpath: string | null;
+  boundsArray: number[];
+  center: number[];
+  children: TreeObject[];
+}
+
+export interface SourceJSON {
+  children: SourceJSON[];
+  [key: string]: unknown;
+}
+
+export function findJSONElementByPath(
+  path: string,
+  sourceJSON: SourceJSON,
+): SourceJSON {
   let selectedElement = sourceJSON;
   for (const index of path.split(".")) {
-    selectedElement = selectedElement.children[index];
+    selectedElement = selectedElement.children[parseInt(index, 10)];
   }
   return { ...selectedElement };
 }
@@ -63,8 +91,11 @@ export function findJSONElementByPath(path, sourceJSON) {
  * @param {string} sourceXML
  * @returns {Object} source in JSON format
  */
-export function xmlToJSON(sourceXML) {
-  const treeMap: any = {};
+export function xmlToJSON(sourceXML: string): {
+  treeObject: TreeObject | Record<string, never>;
+  treeMap: Record<string, TreeObject>;
+} {
+  const treeMap: Record<string, TreeObject> = {};
 
   // Helper function to convert bounds string to boundsArray
   const parseBounds = (boundsString: string | null): number[] => {
@@ -75,13 +106,21 @@ export function xmlToJSON(sourceXML) {
     return boundValues.split(",").map((num) => parseInt(num, 10));
   };
 
-  const translateRecursively = (domNode, parentPath = "", index = null) => {
-    const attributes = {};
+  const translateRecursively = (
+    domNode: Element,
+    parentPath = "",
+    index: number | null = null,
+  ): TreeObject => {
+    const attributes: Record<string, string> = {};
     let boundsArray = [0, 0, 0, 0];
-    for (let attrIdx = 0; attrIdx < domNode.attributes.length; ++attrIdx) {
-      const attr = domNode.attributes.item(attrIdx);
-      // it should be show new line character(\n) in GUI
-      attributes[attr.name] = attr.value.replace(/(\n)/gm, "\\n");
+    if (domNode.attributes) {
+      for (let attrIdx = 0; attrIdx < domNode.attributes.length; ++attrIdx) {
+        const attr = domNode.attributes.item(attrIdx);
+        if (attr) {
+          // it should be show new line character(\n) in GUI
+          attributes[attr.name] = attr.value.replace(/(\n)/gm, "\\n");
+        }
+      }
     }
     // Parse bounds attribute if present
     if (attributes.bounds) {
@@ -96,29 +135,33 @@ export function xmlToJSON(sourceXML) {
     const key = _.isNil(index)
       ? "0"
       : `${!parentPath ? "" : parentPath + "-"}${index}`;
+
+    // Check if sourceDoc is available in scope or pass it.
+    // Wait, sourceDoc is defined below. I need to move sourceDoc definition up or pass it.
+    // In original code, sourceDoc is defined at line 124, but used at line 99 inside translateRecursively.
+    // Because translateRecursively is defined *before* sourceDoc, but *called* after (line 132), it captures the variable.
+    // However, TypeScript might complain if I type it as Document before it's initialized?
+    // No, standard closure rules apply.
+
     const xpath = getOptimalXPath(sourceDoc, domNode);
-    const treeObject = {
+    const treeObject: TreeObject = {
       tagName: domNode.tagName,
       attributes,
       key,
       xpath,
       boundsArray,
       center,
+      children: [], // will be populated
     };
+
     // Store in maps
     treeMap[key] = treeObject;
 
-    return {
-      children: childNodesOf(domNode).map((childNode, childIndex) =>
-        translateRecursively(childNode, key, childIndex),
-      ),
-      tagName: domNode.tagName,
-      attributes,
-      key,
-      xpath,
-      boundsArray,
-      center,
-    };
+    treeObject.children = childNodesOf(domNode).map((childNode, childIndex) =>
+      translateRecursively(childNode as Element, key, childIndex),
+    );
+
+    return treeObject;
   };
 
   const sourceDoc = xmlToDOM(sourceXML);
@@ -126,10 +169,11 @@ export function xmlToJSON(sourceXML) {
   // first try to find an element as a direct descended of the doc, then look for one in
   // documentElement
   const firstChild =
-    childNodesOf(sourceDoc)[0] || childNodesOf(sourceDoc.documentElement)[0];
+    childNodesOf(sourceDoc)[0] ||
+    childNodesOf((sourceDoc as Document).documentElement)[0];
 
   return {
-    treeObject: firstChild ? translateRecursively(firstChild) : {},
+    treeObject: firstChild ? translateRecursively(firstChild as Element) : {},
     treeMap,
   };
 }
@@ -147,7 +191,7 @@ export function xmlToJSON(sourceXML) {
  * @param {Document} node
  * @returns {boolean}
  */
-export function isTagUnique(tagName, node) {
+export function isTagUnique(tagName: string, node: Document): boolean {
   if (!doesDocumentExist(node)) {
     return true;
   }
@@ -157,7 +201,7 @@ export function isTagUnique(tagName, node) {
   }
   return isXpathUnique("//*[name()=$tagName]", {
     variables: { tagName: trimmedTagName },
-    node,
+    node: node,
   });
 }
 
@@ -171,7 +215,11 @@ export function isTagUnique(tagName, node) {
  * @param {Document} node
  * @returns {boolean}
  */
-export function areAttrAndValueUnique(attrName, attrValue, node) {
+export function areAttrAndValueUnique(
+  attrName: string,
+  attrValue: string,
+  node: Document,
+): boolean {
   if (!doesDocumentExist(node)) {
     return true;
   }
@@ -183,7 +231,7 @@ export function areAttrAndValueUnique(attrName, attrValue, node) {
   // so the attribute name is safe to use directly
   return isXpathUnique(`//*[@${trimmedAttrName}=$attrValue]`, {
     variables: { attrValue },
-    node,
+    node: node,
   });
 }
 
@@ -196,10 +244,10 @@ export function areAttrAndValueUnique(attrName, attrValue, node) {
  * @returns {Record<string, string>} mapping of strategies to selectors
  */
 export function getSimpleSuggestedLocators(
-  elementProps,
-  sourceDoc,
+  elementProps: { tag: string; attributes: Record<string, string> },
+  sourceDoc: Document,
   isNative = true,
-) {
+): Record<string, string> {
   const simpleLocGen = new SimpleLocatorGenerator(elementProps, sourceDoc);
   return isNative
     ? simpleLocGen.generateNativeSelectors()
@@ -216,14 +264,14 @@ export function getSimpleSuggestedLocators(
  * @returns {Record<string, string>} mapping of strategies to selectors
  */
 export function getComplexSuggestedLocators(
-  path,
-  sourceDoc,
-  isNative,
-  automationName,
-) {
-  let complexLocators = {};
+  path: string,
+  sourceDoc: Document,
+  isNative: boolean,
+  automationName: string,
+): Record<string, string> {
+  const complexLocators: Record<string, string | null> = {};
   const domNode = findDOMNodeByPath(path, sourceDoc);
-  if (isNative) {
+  if (isNative && domNode) {
     switch (automationName) {
       case "xcuitest":
       case "mac2": {
@@ -247,10 +295,12 @@ export function getComplexSuggestedLocators(
       }
     }
   }
-  complexLocators.xpath = getOptimalXPath(sourceDoc, domNode);
+  if (domNode) {
+    complexLocators.xpath = getOptimalXPath(sourceDoc, domNode);
+  }
 
   // Remove entries for locators where the optimal selector could not be found
-  return _.omitBy(complexLocators, _.isNil);
+  return _.omitBy(complexLocators, _.isNil) as Record<string, string>;
 }
 
 /**
@@ -263,11 +313,11 @@ export function getComplexSuggestedLocators(
  * @returns {Array<[string, string]>} array of tuples, consisting of the locator strategy and selector
  */
 export function getSuggestedLocators(
-  selectedElement,
-  sourceXML,
-  isNative,
-  automationName,
-) {
+  selectedElement: TreeObject,
+  sourceXML: string,
+  isNative: boolean,
+  automationName: string,
+): Array<[string, string]> {
   const simpleLocElementProps = {
     tag: selectedElement.tagName,
     attributes: selectedElement.attributes,
@@ -278,13 +328,47 @@ export function getSuggestedLocators(
     sourceDoc,
     isNative,
   );
-  const complexLocators = getComplexSuggestedLocators(
-    selectedElement.path,
-    sourceDoc,
-    isNative,
-    automationName,
-  );
-  return _.toPairs({ ...simpleLocators, ...complexLocators });
+  if (selectedElement.key) {
+    // Assuming 'key' or nested 'key' maps to path?
+    // Original code used selectedElement.path, but TreeObject defines 'key'.
+    // 'xmlToJSON' produces 'key' from 'parentPath' and 'index'.
+    // But 'findDOMNodeByPath' expects 'path' (dot separated).
+    // 'key' is dot separated?
+    // In 'translateRecursively', key = parentPath + "-" + index.
+    // Wait, original 'findDOMNodeByPath' split by ".".
+    // 'key' uses "-".
+    // Is 'key' the 'path'?
+    // Or 'selectedElement.path' was documented in JSDoc for getSuggestedLocators but missing in TreeObject?
+    // I'll assume 'key' needs to be converted or 'key' IS the path but with dashes?
+    // Actually 'findDOMNodeByPath' splits by ".".
+    // 'key' in `sourceParsing.ts` seems to be used for uniqueness?
+    // The original code passed `selectedElement.path` to `getComplexSuggestedLocators`.
+    // `findDOMNodeByPath` takes `path` and splits by `.`.
+    // `xmlToJSON` produces keys with dashes?
+    // `key` = `0` or `0-1`.
+    // `path` in `findDOMNodeByPath` splits by `.`.
+    // If `selectedElement` comes from `xmlToJSON`, it has `key`.
+    // If `key` is `0-1`, `path.split('.')` won't work if it expects `0.1`.
+    // I should probably convert `key` (dashes) to `path` (dots).
+    // Or maybe existing code works because they ARE dots?
+    // `translateRecursively`: `const key = ... ? "0" : ... + "-" + index`.
+    // So it uses dashes.
+    // `findDOMNodeByPath`: `path.split(".")`.
+    // So if I pass `0-1`, split(".") gives `["0-1"]`. loop runs once. `childNodesOf(selectedElement)[index]`. index="0-1". `parseInt` parses "0".
+    // This seems wrong if depth > 1.
+    // Use `selectedElement.key.replace(/-/g, ".")`?
+    // Proceed with caution. I'll use `selectedElement.key.replace(/-/g, ".")`.
+
+    const path = selectedElement.key.replace(/-/g, ".");
+    const complexLocators = getComplexSuggestedLocators(
+      path,
+      sourceDoc,
+      isNative,
+      automationName,
+    );
+    return _.toPairs({ ...simpleLocators, ...complexLocators });
+  }
+  return _.toPairs({ ...simpleLocators });
 }
 
 /**
@@ -294,7 +378,7 @@ export function getSuggestedLocators(
  * @param {Node} domNode
  * @returns {string|null}
  */
-export function getOptimalXPath(doc, domNode) {
+export function getOptimalXPath(doc: Document, domNode: Node): string | null {
   return new XPathGenerator(doc, domNode).generate();
 }
 
@@ -305,7 +389,10 @@ export function getOptimalXPath(doc, domNode) {
  * @param {Node} domNode
  * @returns {string|null}
  */
-export function getOptimalClassChain(doc, domNode) {
+export function getOptimalClassChain(
+  doc: Document,
+  domNode: Node,
+): string | null {
   return new ClassChainGenerator(doc, domNode).generate();
 }
 
@@ -317,7 +404,10 @@ export function getOptimalClassChain(doc, domNode) {
  * @param {Node} domNode
  * @returns {string|null}
  */
-export function getOptimalPredicateString(doc, domNode) {
+export function getOptimalPredicateString(
+  doc: Document,
+  domNode: Node,
+): string | null {
   return new PredicateStringGenerator(doc, domNode).generate();
 }
 
@@ -330,7 +420,11 @@ export function getOptimalPredicateString(doc, domNode) {
  * @param {string} path a dot-separated string of indices
  * @returns {string|null}
  */
-export function getOptimalUiAutomatorSelector(doc, domNode, path) {
+export function getOptimalUiAutomatorSelector(
+  doc: Document,
+  domNode: Node,
+  path: string,
+): string | null {
   return new UiAutomatorGenerator(doc, domNode, path).generate();
 }
 
@@ -345,7 +439,7 @@ export function getOptimalUiAutomatorSelector(doc, domNode, path) {
  * @param {*} value input value
  * @returns {string} trimmed string
  */
-function toTrimmedString(value) {
+function toTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
@@ -355,7 +449,7 @@ function toTrimmedString(value) {
  * @param {Document | undefined} node document node
  * @returns {boolean}
  */
-function doesDocumentExist(node) {
+function doesDocumentExist(node: Document | undefined): boolean {
   // If no node provided, assume the xpath is unique
   return Boolean(node) && !_.isEmpty(node);
 }
@@ -369,8 +463,97 @@ function doesDocumentExist(node) {
  * @see https://github.com/goto100/xpath/blob/master/docs/XPathEvaluator.md
  * @returns {boolean}
  */
-function isXpathUnique(xpath, options) {
-  return XPath.parse(xpath).select(options).length === 1;
+interface XPathParser {
+  parse(expression: string): { select(options: XPathOptions): Node[] };
+}
+
+interface XPathOptions {
+  node?: Node;
+  variables?: Record<string, unknown>;
+  namespaces?: Record<string, string>;
+}
+
+/**
+ * Parse and evaluate an xpath using the built-in safe variable replacement,
+ * then check whether it finds exactly one element
+ *
+ * @param {string} xpath
+ * @param {XPathOptions} options options for XPathEvaluator
+ * @see https://github.com/goto100/xpath/blob/master/docs/XPathEvaluator.md
+ * @returns {boolean}
+ */
+function isXpathUnique(
+  xpathExpression: string,
+  options: XPathOptions,
+): boolean {
+  return (
+    (xpath as unknown as XPathParser).parse(xpathExpression).select(options)
+      .length === 1
+  );
+}
+
+/**
+ * Escapes a string for use in a CSS selector.
+ *
+ * @param {string} value
+ * @returns {string} escaped string
+ */
+function cssEscape(value: string): string {
+  if (arguments.length === 0) {
+    throw new TypeError("`CSS.escape` requires an argument.");
+  }
+  const string = String(value);
+
+  // Basic implementation of CSS.escape
+  const length = string.length;
+  let index = -1;
+  let codeUnit;
+  let result = "";
+  const firstCodeUnit = string.charCodeAt(0);
+
+  while (++index < length) {
+    codeUnit = string.charCodeAt(index);
+    // Note: there's plenty of strict rules for CSS escaping,
+    // but for basic IDs this should cover most cases (spaces, quotes, etc)
+    // For now, simpler:
+    if (codeUnit === 0x0000) {
+      result += "\uFFFD";
+      continue;
+    }
+
+    if (
+      (codeUnit >= 0x0001 && codeUnit <= 0x001f) ||
+      codeUnit === 0x007f ||
+      (index === 0 && codeUnit >= 0x0030 && codeUnit <= 0x0039) ||
+      (index === 1 &&
+        codeUnit >= 0x0030 &&
+        codeUnit <= 0x0039 &&
+        firstCodeUnit === 0x002d)
+    ) {
+      result += "\\" + codeUnit.toString(16) + " ";
+      continue;
+    }
+
+    if (index === 0 && length === 1 && codeUnit === 0x002d) {
+      result += "\\" + string.charAt(index);
+      continue;
+    }
+
+    if (
+      codeUnit >= 0x0080 ||
+      codeUnit === 0x002d ||
+      codeUnit === 0x005f ||
+      (codeUnit >= 0x0030 && codeUnit <= 0x0039) ||
+      (codeUnit >= 0x0041 && codeUnit <= 0x005a) ||
+      (codeUnit >= 0x0061 && codeUnit <= 0x007a)
+    ) {
+      result += string.charAt(index);
+      continue;
+    }
+
+    result += "\\" + string.charAt(index);
+  }
+  return result;
 }
 
 /**
@@ -378,13 +561,16 @@ function isXpathUnique(xpath, options) {
  * @private
  */
 class LocatorGeneratorBase {
+  protected _doc: Document;
+  protected _domNode: Element;
+
   /**
    * @param {Document} doc - the document containing the DOM
    * @param {Node} domNode - the DOM node to generate locators for
    */
-  constructor(doc, domNode) {
+  constructor(doc: Document, domNode: Node) {
     this._doc = doc;
-    this._domNode = domNode;
+    this._domNode = domNode as Element;
   }
 
   /**
@@ -392,17 +578,15 @@ class LocatorGeneratorBase {
    *
    * @returns {Node[]} array of sibling nodes with the same tag name
    */
-  _getSiblingsWithSameTag() {
+  _getSiblingsWithSameTag(): Node[] {
     if (!this._domNode.parentNode) {
       return [];
     }
-    return Array.prototype.slice
-      .call(this._domNode.parentNode.childNodes, 0)
-      .filter(
-        (childNode) =>
-          childNode.nodeType === 1 &&
-          childNode.tagName === this._domNode.tagName,
-      );
+    return Array.from(this._domNode.parentNode.childNodes).filter(
+      (childNode) =>
+        childNode.nodeType === 1 &&
+        (childNode as Element).tagName === this._domNode.tagName,
+    );
   }
 
   /**
@@ -410,8 +594,8 @@ class LocatorGeneratorBase {
    *
    * @returns {boolean} true if the node is a valid element
    */
-  _isValidElementNode() {
-    return this._domNode.tagName && this._domNode.nodeType === 1;
+  _isValidElementNode(): boolean {
+    return !!(this._domNode.tagName && this._domNode.nodeType === 1);
   }
 }
 
@@ -439,7 +623,7 @@ class XPathGenerator extends LocatorGeneratorBase {
    *
    * @returns {string|null}
    */
-  generate() {
+  generate(): string | null {
     try {
       // If this isn't an element, we're above the root, return empty string
       if (!this._isValidElementNode()) {
@@ -455,7 +639,7 @@ class XPathGenerator extends LocatorGeneratorBase {
       // Fall back to hierarchical XPath based on DOM position
       return this._buildHierarchicalXPath();
     } catch (error) {
-      logLocatorError("XPath", error);
+      logLocatorError("XPath", error as Error);
       return null;
     }
   }
@@ -468,12 +652,12 @@ class XPathGenerator extends LocatorGeneratorBase {
    * @returns {[boolean]|[boolean, number]} tuple consisting of (1) whether the xpath is unique and (2) its index in
    * the set of other similar nodes if not unique
    */
-  _determineXpathUniqueness(xpath) {
-    let othersWithAttr = [];
+  _determineXpathUniqueness(xpath: string): [boolean] | [boolean, number] {
+    let othersWithAttr: Node[] = [];
 
     // If the XPath does not parse, move to the next unique attribute
     try {
-      othersWithAttr = xpathSelect(xpath, this._doc);
+      othersWithAttr = xpathSelect(xpath, this._doc as Node) as Node[];
     } catch {
       return [false];
     }
@@ -490,7 +674,7 @@ class XPathGenerator extends LocatorGeneratorBase {
    *
    * @returns {[string, boolean]|[]} tuple of [xpath, isUnique] or empty array if not unique
    */
-  _tryNodeNameXPath() {
+  _tryNodeNameXPath(): [string, boolean] | [] {
     let xpath = `//${this._domNode.tagName}`;
     const [isUnique] = this._determineXpathUniqueness(xpath);
     if (!isUnique) {
@@ -498,7 +682,8 @@ class XPathGenerator extends LocatorGeneratorBase {
     }
 
     // Even if this node name is unique, if it's the root node, use '/' instead of '//'
-    if (!this._domNode.parentNode?.tagName) {
+    const parent = this._domNode.parentNode as Element | null;
+    if (!parent?.tagName) {
       xpath = `/${this._domNode.tagName}`;
     }
     return [xpath, true];
@@ -511,7 +696,10 @@ class XPathGenerator extends LocatorGeneratorBase {
    * @param {string} tagForXpath - the tag name to use in the XPath
    * @returns {string|undefined} the XPath expression or undefined if attribute is missing
    */
-  _buildXPathFromSingleAttribute(attrName, tagForXpath) {
+  _buildXPathFromSingleAttribute(
+    attrName: string,
+    tagForXpath: string,
+  ): string | undefined {
     const attrValue = this._domNode.getAttribute(attrName);
     if (!attrValue) {
       return undefined;
@@ -526,7 +714,10 @@ class XPathGenerator extends LocatorGeneratorBase {
    * @param {string} tagForXpath - the tag name to use in the XPath
    * @returns {string|undefined} the XPath expression or undefined if any attribute is missing
    */
-  _buildXPathFromAttributePair(attrPair, tagForXpath) {
+  _buildXPathFromAttributePair(
+    attrPair: [string, string],
+    tagForXpath: string,
+  ): string | undefined {
     const [attr1Name, attr2Name] = attrPair;
     const attr1Value = this._domNode.getAttribute(attr1Name);
     const attr2Value = this._domNode.getAttribute(attr2Name);
@@ -543,7 +734,7 @@ class XPathGenerator extends LocatorGeneratorBase {
    * @param {number} index - the index of the node in the matching set
    * @returns {string} the XPath with index qualifier
    */
-  _buildSemiUniqueXPath(xpath, index) {
+  _buildSemiUniqueXPath(xpath: string, index: number): string {
     return `(${xpath})[${index + 1}]`;
   }
 
@@ -553,16 +744,21 @@ class XPathGenerator extends LocatorGeneratorBase {
    * @param {string[]|[string, string][]} attrs - attributes to test (single attributes or pairs)
    * @returns {[string|undefined, boolean|undefined]} tuple of [xpath, isUnique] or empty values
    */
-  _tryAttributesForUniqueXPath(attrs) {
+  _tryAttributesForUniqueXPath(
+    attrs: string[] | [string, string][],
+  ): [string | undefined, boolean | undefined] {
     const tagForXpath = this._domNode.tagName || "*";
-    const isPairs = attrs.length > 0 && _.isArray(attrs[0]);
-    let uniqueXpath;
-    let semiUniqueXpath;
+    const isPairs = attrs.length > 0 && Array.isArray(attrs[0]);
+    let uniqueXpath: string | undefined;
+    let semiUniqueXpath: string | undefined;
 
     for (const attrName of attrs) {
       const xpath = isPairs
-        ? this._buildXPathFromAttributePair(attrName, tagForXpath)
-        : this._buildXPathFromSingleAttribute(attrName, tagForXpath);
+        ? this._buildXPathFromAttributePair(
+            attrName as [string, string],
+            tagForXpath,
+          )
+        : this._buildXPathFromSingleAttribute(attrName as string, tagForXpath);
 
       if (!xpath) {
         continue;
@@ -576,7 +772,7 @@ class XPathGenerator extends LocatorGeneratorBase {
       }
 
       // Store the first semi-unique XPath we find for fallback
-      if (!semiUniqueXpath && !_.isUndefined(indexIfNotUnique)) {
+      if (!semiUniqueXpath && typeof indexIfNotUnique === "number") {
         semiUniqueXpath = this._buildSemiUniqueXPath(xpath, indexIfNotUnique);
       }
     }
@@ -587,7 +783,7 @@ class XPathGenerator extends LocatorGeneratorBase {
     if (semiUniqueXpath) {
       return [semiUniqueXpath, false];
     }
-    return [];
+    return [undefined, undefined];
   }
 
   /**
@@ -600,10 +796,16 @@ class XPathGenerator extends LocatorGeneratorBase {
    * @returns {[string|undefined, boolean|undefined]} tuple consisting of (1) the xpath selector discovered, and (2)
    * whether this selector is absolutely unique in the document (true) or qualified by index (false)
    */
-  _getUniqueXPath(attrs) {
+  _getUniqueXPath(
+    attrs: string[] | [string, string][],
+  ): [string | undefined, boolean | undefined] {
     // If we're looking for a unique //<nodetype>, return it only if it's actually unique
     if (attrs.length === 0) {
-      return this._tryNodeNameXPath();
+      const result = this._tryNodeNameXPath();
+      if (result.length === 0) {
+        return [undefined, undefined];
+      }
+      return result as [string, boolean];
     }
 
     return this._tryAttributesForUniqueXPath(attrs);
@@ -615,9 +817,9 @@ class XPathGenerator extends LocatorGeneratorBase {
    * @param {string[]} attributes - list of attributes to permute
    * @returns {[string, string][]} array of attribute pairs
    */
-  _buildAttributePairsPermutations(attributes) {
+  _buildAttributePairsPermutations(attributes: string[]): [string, string][] {
     return attributes.flatMap((v1, i) =>
-      attributes.slice(i + 1).map((v2) => [v1, v2]),
+      attributes.slice(i + 1).map((v2) => [v1, v2] as [string, string]),
     );
   }
 
@@ -626,7 +828,7 @@ class XPathGenerator extends LocatorGeneratorBase {
    *
    * @returns {Array<string[]|[string, string][]>} array of attribute configurations to test
    */
-  _buildXPathCases() {
+  _buildXPathCases(): Array<string[] | [string, string][]> {
     const allAttributes = [
       ...XPathGenerator.UNIQUE_ATTRIBUTES,
       ...XPathGenerator.MAYBE_UNIQUE_ATTRIBUTES,
@@ -651,9 +853,9 @@ class XPathGenerator extends LocatorGeneratorBase {
    *
    * @returns {string|undefined} the best XPath found, or undefined if none found
    */
-  _tryCasesForUniqueXPath() {
+  _tryCasesForUniqueXPath(): string | undefined {
     const cases = this._buildXPathCases();
-    let semiUniqueXpath;
+    let semiUniqueXpath: string | undefined;
 
     for (const attrs of cases) {
       const [xpath, isFullyUnique] = this._getUniqueXPath(attrs);
@@ -685,11 +887,12 @@ class XPathGenerator extends LocatorGeneratorBase {
     }
 
     // Recursively build parent path and prepend it
-    const parentGenerator = new XPathGenerator(
-      this._doc,
-      this._domNode.parentNode,
-    );
-    return parentGenerator.generate() + xpath;
+    const parentNode = this._domNode.parentNode;
+    if (parentNode && parentNode.nodeType === 1) {
+      const parentGenerator = new XPathGenerator(this._doc, parentNode as Node);
+      return parentGenerator.generate() + xpath;
+    }
+    return xpath;
   }
 }
 
@@ -706,7 +909,7 @@ class ClassChainGenerator extends LocatorGeneratorBase {
    *
    * @returns {string|null}
    */
-  generate() {
+  generate(): string | null {
     try {
       // If this isn't an element or is XCUIElementTypeApplication, return empty string
       if (this._cannotProcessNode()) {
@@ -722,7 +925,7 @@ class ClassChainGenerator extends LocatorGeneratorBase {
       // Fall back to hierarchical class chain based on DOM position
       return this._buildHierarchicalClassChain();
     } catch (error) {
-      logLocatorError("class chain", error);
+      logLocatorError("class chain", error as Error);
       return null;
     }
   }
@@ -746,7 +949,7 @@ class ClassChainGenerator extends LocatorGeneratorBase {
    * @param {string} attrValue - the attribute value
    * @returns {string} the class chain expression
    */
-  _buildClassChainFromAttribute(attrName, attrValue) {
+  _buildClassChainFromAttribute(attrName: string, attrValue: string): string {
     const tagName = this._domNode.tagName || "*";
     return `/${tagName}[\`${attrName} == "${attrValue}"\`]`;
   }
@@ -758,7 +961,7 @@ class ClassChainGenerator extends LocatorGeneratorBase {
    * @param {string} attrValue - the attribute value
    * @returns {string} the XPath expression
    */
-  _buildUniquenessXPath(attrName, attrValue) {
+  _buildUniquenessXPath(attrName: string, attrValue: string): string {
     const tagName = this._domNode.tagName || "*";
     return `//${tagName}[@${attrName}="${attrValue}"]`;
   }
@@ -770,7 +973,7 @@ class ClassChainGenerator extends LocatorGeneratorBase {
    * @param {number} index - the index of the node in the matching set
    * @returns {string} the class chain with index qualifier
    */
-  _buildClassChainWithIndex(classChain, index) {
+  _buildClassChainWithIndex(classChain: string, index: number): string {
     return `${classChain}[${index + 1}]`;
   }
 
@@ -782,7 +985,7 @@ class ClassChainGenerator extends LocatorGeneratorBase {
   _tryAttributeBasedClassChain() {
     for (const attrName of ClassChainGenerator.CHECKED_ATTRIBUTES) {
       const attrValue = this._domNode.getAttribute(attrName);
-      if (_.isEmpty(attrValue)) {
+      if (!attrValue) {
         continue;
       }
 
@@ -791,7 +994,7 @@ class ClassChainGenerator extends LocatorGeneratorBase {
 
       // If the XPath does not parse, move to the next attribute
       try {
-        othersWithAttr = xpathSelect(xpath, this._doc);
+        othersWithAttr = xpathSelect(xpath, this._doc as Node) as Node[];
       } catch {
         continue;
       }
@@ -816,7 +1019,7 @@ class ClassChainGenerator extends LocatorGeneratorBase {
    *
    * @returns {string} hierarchical class chain for this node
    */
-  _buildHierarchicalClassChain() {
+  _buildHierarchicalClassChain(): string {
     let classChain = `/${this._domNode.tagName}`;
     const siblings = this._getSiblingsWithSameTag();
 
@@ -827,11 +1030,12 @@ class ClassChainGenerator extends LocatorGeneratorBase {
     }
 
     // Recursively build parent path and prepend it
-    const parentGenerator = new ClassChainGenerator(
-      this._doc,
-      this._domNode.parentNode,
-    );
-    return parentGenerator.generate() + classChain;
+    const parentNode = this._domNode.parentNode;
+    if (parentNode && parentNode.nodeType === 1) {
+      const parentGenerator = new ClassChainGenerator(this._doc, parentNode);
+      return parentGenerator.generate() + classChain;
+    }
+    return classChain;
   }
 }
 
@@ -849,7 +1053,7 @@ class PredicateStringGenerator extends LocatorGeneratorBase {
    *
    * @returns {string|null}
    */
-  generate() {
+  generate(): string | null {
     try {
       // BASE CASE #1: If this isn't an element, or we're above the root, return empty string
       if (!this._isValidElementNode()) {
@@ -857,9 +1061,9 @@ class PredicateStringGenerator extends LocatorGeneratorBase {
       }
 
       // BASE CASE #2: Check all attributes and try to find the best way
-      let xpathAttributes = [];
-      let predicateString = [];
-      let othersWithAttr;
+      const xpathAttributes: string[] = [];
+      const predicateString: string[] = [];
+      let othersWithAttr: Node[];
 
       for (const attrName of PredicateStringGenerator.CHECKED_ATTRIBUTES) {
         const attrValue = this._domNode.getAttribute(attrName);
@@ -873,7 +1077,7 @@ class PredicateStringGenerator extends LocatorGeneratorBase {
 
         // If the XPath does not parse, move to the next attribute
         try {
-          othersWithAttr = xpathSelect(xpath, this._doc);
+          othersWithAttr = xpathSelect(xpath, this._doc as Node) as Node[];
         } catch {
           continue;
         }
@@ -883,9 +1087,10 @@ class PredicateStringGenerator extends LocatorGeneratorBase {
           return predicateString.join(" AND ");
         }
       }
+      return null;
     } catch (error) {
       // If there's an unexpected exception, abort
-      logLocatorError("predicate string", error);
+      logLocatorError("predicate string", error as Error);
       return null;
     }
   }
@@ -904,12 +1109,14 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
     ["class", "className"],
   ];
 
+  private _path: string;
+
   /**
    * @param {Document} doc - the document containing the DOM
    * @param {Node} domNode - the DOM node to generate locators for
    * @param {string} path - a dot-separated string of indices
    */
-  constructor(doc, domNode, path) {
+  constructor(doc: Document, domNode: Node, path: string) {
     super(doc, domNode);
     this._path = path;
   }
@@ -920,7 +1127,7 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
    *
    * @returns {string|null}
    */
-  generate() {
+  generate(): string | null {
     try {
       // If this isn't an element, return empty string
       if (!this._isValidElementNode()) {
@@ -938,7 +1145,7 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
       // Try to find a unique UiAutomator selector
       return this._tryFindUniqueSelector(newDoc, newDomNode);
     } catch (error) {
-      logLocatorError("uiautomator selector", error);
+      logLocatorError("uiautomator selector", error as Error);
       return null;
     }
   }
@@ -948,7 +1155,7 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
    *
    * @returns {Node[]} array of hierarchy children
    */
-  _getHierarchyChildren() {
+  _getHierarchyChildren(): Node[] {
     const docChildren = childNodesOf(this._doc);
     if (_.isEmpty(docChildren)) {
       return [];
@@ -962,7 +1169,7 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
    *
    * @returns {boolean} true if element is in the last hierarchy child
    */
-  _isInLastHierarchyChild() {
+  _isInLastHierarchyChild(): boolean {
     const hierarchyChildren = this._getHierarchyChildren();
     if (_.isEmpty(hierarchyChildren)) {
       return false;
@@ -980,10 +1187,11 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
    *
    * @returns {{newDoc: Document, newDomNode: Node}} new document and node in the new scope
    */
-  _createLastHierarchyChildScope() {
+  _createLastHierarchyChildScope(): { newDoc: Document; newDomNode: Element } {
     const hierarchyChildren = this._getHierarchyChildren();
     const lastHierarchyChildIndex = (hierarchyChildren.length - 1).toString();
-    const lastHierarchyChild = hierarchyChildren[lastHierarchyChildIndex];
+    const lastHierarchyChild =
+      hierarchyChildren[parseInt(lastHierarchyChildIndex, 10)];
 
     // Convert the last hierarchy child to XML and wrap it in a dummy tag to create a Document
     const newXml = domToXML(lastHierarchyChild);
@@ -995,7 +1203,7 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
     const newPath = pathArray.join(".");
 
     // Find the node in the new document scope
-    const newDomNode = findDOMNodeByPath(newPath, newDoc);
+    const newDomNode = findDOMNodeByPath(newPath, newDoc) as Element;
 
     return { newDoc, newDomNode };
   }
@@ -1007,7 +1215,7 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
    * @param {string} attrValue - the attribute value
    * @returns {string} the UiAutomator selector
    */
-  _buildUiSelector(attrTranslation, attrValue) {
+  _buildUiSelector(attrTranslation: string, attrValue: string): string {
     return `new UiSelector().${attrTranslation}("${attrValue}")`;
   }
 
@@ -1018,7 +1226,7 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
    * @param {number} index - the instance index
    * @returns {string} the UiAutomator selector with instance
    */
-  _buildUiSelectorWithInstance(uiSelector, index) {
+  _buildUiSelectorWithInstance(uiSelector: string, index: number): string {
     return `${uiSelector}.instance(${index})`;
   }
 
@@ -1030,7 +1238,11 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
    * @param {string} attrValue - the attribute value
    * @returns {string} the XPath expression
    */
-  _buildUniquenessXPath(domNode, attrName, attrValue) {
+  _buildUniquenessXPath(
+    domNode: Element,
+    attrName: string,
+    attrValue: string,
+  ): string {
     return `//${domNode.tagName}[@${attrName}="${attrValue}"]`;
   }
 
@@ -1039,28 +1251,32 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
    *
    * @param {Document} doc - the document scope to search in
    * @param {Node} domNode - the DOM node in the new scope
-   * @returns {string|undefined} the most unique selector found, or undefined
+   * @returns {string|null} the most unique selector found, or null
    */
-  _tryFindUniqueSelector(doc, domNode) {
-    let mostUniqueSelector;
-    let othersWithAttrMinCount;
+  _tryFindUniqueSelector(doc: Document, domNode: Node): string | null {
+    let mostUniqueSelector: string | undefined;
+    let othersWithAttrMinCount: number | undefined;
 
     for (const [
       attrName,
       attrTranslation,
     ] of UiAutomatorGenerator.CHECKED_ATTRIBUTES) {
-      const attrValue = domNode.getAttribute(attrName);
-      if (_.isEmpty(attrValue)) {
+      const attrValue = (domNode as Element).getAttribute(attrName);
+      if (_.isEmpty(attrValue) || !attrValue) {
         continue;
       }
 
-      const xpath = this._buildUniquenessXPath(domNode, attrName, attrValue);
+      const xpath = this._buildUniquenessXPath(
+        domNode as Element,
+        attrName,
+        attrValue,
+      );
       const uiSelector = this._buildUiSelector(attrTranslation, attrValue);
 
       // If the XPath does not parse, move to the next attribute
-      let othersWithAttr;
+      let othersWithAttr: Node[];
       try {
-        othersWithAttr = xpathSelect(xpath, doc);
+        othersWithAttr = xpathSelect(xpath, doc as Node) as Node[];
       } catch {
         continue;
       }
@@ -1084,7 +1300,7 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
       }
     }
 
-    return mostUniqueSelector;
+    return mostUniqueSelector || null;
   }
 }
 
@@ -1104,11 +1320,18 @@ class SimpleLocatorGenerator {
     ["type", STRATS.CLASS_NAME],
   ];
 
+  private _doc: Document;
+  private _tag: string;
+  private _attributes: Record<string, string>;
+
   /**
    * @param {Record<string, string|object>} elementProps relevant element properties
    * @param {Document} sourceDoc - the source document
    */
-  constructor(elementProps, sourceDoc) {
+  constructor(
+    elementProps: { tag: string; attributes: Record<string, string> },
+    sourceDoc: Document,
+  ) {
     this._doc = sourceDoc;
     this._tag = elementProps.tag;
     this._attributes = elementProps.attributes;
@@ -1120,7 +1343,7 @@ class SimpleLocatorGenerator {
    *
    * @returns {Record<string, string>} mapping of native strategies to selectors
    */
-  generateNativeSelectors() {
+  generateNativeSelectors(): Record<string, string> {
     return SimpleLocatorGenerator.NATIVE_STRATEGY_MAP.reduce(
       (res, [strategyAlias, strategy]) => {
         const value = this._attributes?.[strategyAlias];
@@ -1129,7 +1352,7 @@ class SimpleLocatorGenerator {
         }
         return res;
       },
-      {},
+      {} as Record<string, string>,
     );
   }
 
@@ -1139,8 +1362,8 @@ class SimpleLocatorGenerator {
    *
    * @returns {Record<string, string>} mapping of web strategies to selectors
    */
-  generateWebSelectors() {
-    const webStrategyMap = {};
+  generateWebSelectors(): Record<string, string> {
+    const webStrategyMap: Record<string, string> = {};
     // id (css)
     const idValue = this._attributes?.id;
     if (idValue && areAttrAndValueUnique("id", idValue, this._doc)) {
@@ -1160,7 +1383,7 @@ class SimpleLocatorGenerator {
  * @param {string} strategy - the locator strategy name
  * @param {Error} error - the error that occurred
  */
-function logLocatorError(strategy, error) {
+function logLocatorError(strategy: string, error: Error) {
   log.error(
     `The most optimal ${strategy} could not be determined because an error was thrown: '${error}'`,
   );

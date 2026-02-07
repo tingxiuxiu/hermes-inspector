@@ -7,10 +7,9 @@ import {
   MenuItem,
   Select,
   TextField,
-  Tooltip,
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import {
   setDeviceSerial,
@@ -29,23 +28,8 @@ export default function AppNavBar() {
     deviceType,
     ocrType,
   } = useAppSelector((state) => state.systemConfig);
-  const [showConfigTip, setShowConfigTip] = useState(true);
   const [openSettingsDialog, setOpenSettingsDialog] = useState(false);
-
-  // 检查是否是首次打开应用
-  useEffect(() => {
-    const hasSeenConfigTip = localStorage.getItem("hasSeenConfigTip");
-    // 如果用户从未看过提示，并且系统配置尚未完整设置，则显示提示
-    if (!hasSeenConfigTip) {
-      setShowConfigTip(true);
-    }
-  }, []);
-
-  const handleTooltipClose = () => {
-    setShowConfigTip(false);
-    localStorage.setItem("hasSeenConfigTip", "true");
-  };
-
+  
   return (
     <Box
       id="app-navbar-box"
@@ -102,9 +86,9 @@ export default function AppNavBar() {
             disabled={connected}
           >
             <MenuItem value="baidu">百度OCR</MenuItem>
-            <MenuItem value="ali">阿里云OCR</MenuItem>
-            <MenuItem value="tencent">腾讯OCR</MenuItem>
-            <MenuItem value="google">Google OCR</MenuItem>
+            <MenuItem value="ali" disabled>阿里云OCR</MenuItem>
+            <MenuItem value="tencent" disabled>腾讯OCR</MenuItem>
+            <MenuItem value="google" disabled>Google OCR</MenuItem>
           </Select>
         </FormControl>
         <TextField
