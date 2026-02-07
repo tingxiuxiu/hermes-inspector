@@ -4,7 +4,8 @@ from pathlib import Path
 import cv2
 
 from loguru import logger
-from hermes import new_device, AndroidDeviceModel
+from hermes import new_device
+from hermes.models.device import AndroidDeviceModel
 from hermes.models.component import Point, Size
 from hermes.models.selector import Selector
 from hermes.protocol.device_protocol import DeviceProtocol
@@ -15,19 +16,24 @@ from ..utils.tools import generate_png_filename, generate_xml_filename
 from ..interface.andorid import CheckSelectorRequest, CheckSelectorResultModel
 
 
+from typing import Dict, TypeVar, Any
+
+T = TypeVar("T")
+
+
 class SingletonMeta(type):
     """单例元类"""
 
-    _instances = {}
-    _lock = threading.Lock()
+    _instances: Dict[Any, Any] = {}
+    _lock: threading.Lock = threading.Lock()
 
-    def __call__(cls, *args, **kwargs):
+    def __call__(cls: Any, *args: Any, **kwargs: Any) -> Any:
         """类实例化时执行该方法"""
-        with cls._lock:
-            if cls not in cls._instances:
+        with SingletonMeta._lock:
+            if cls not in SingletonMeta._instances:
                 # 创建类的实例（调用类的__new__和__init__）
-                cls._instances[cls] = super().__call__(*args, **kwargs)
-        return cls._instances[cls]
+                SingletonMeta._instances[cls] = super().__call__(*args, **kwargs)
+        return SingletonMeta._instances[cls]
 
 
 class IAndroidSystem(metaclass=SingletonMeta):
@@ -40,6 +46,7 @@ class IAndroidSystem(metaclass=SingletonMeta):
         self.sn: str = driver_profile.sn
         config.sn = self.sn
         self._device: DeviceProtocol | None = None
+        logger.info(f"Create AndroidSystem instance, sn: {self.sn}")
 
     def refresh_driver_profile(self, driver_profile: DriverProfile):
         self.device_type = driver_profile.device_type
