@@ -1,5 +1,5 @@
 [project]
-name = "ta-inspector"
+name = "hermes-inspector"
 version = "0.0.1"
 description = "UI visual inspection for Android, Apple, and Harmony devices(用于安卓,苹果,鸿蒙设备的UI可视化检查)"
 authors = [
@@ -9,7 +9,6 @@ dependencies = [
     "fastapi[standard]>=0.127.0",
     "psutil>=7.1.3",
     "loguru>=0.7.3",
-    "appium-python-client>=5.2.4",
     "httpx>=0.28.1",
     "opencv-python>=4.12.0.88",
 ]
@@ -22,7 +21,10 @@ requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
 [project.scripts]
-ta-inspector = "ta_inspector.main:main"
+hermes-inspector = "hermes_inspector.main:main"
+
+[tool.pdm.scripts]
+dev.cmd = "python -m fastapi dev --host 0.0.0.0 --port 13710 src/hermes_inspector/main.py"
 
 [tool.pyright]
 pythonVersion = "3.14"
@@ -31,16 +33,15 @@ pythonPath = ".venv/Scripts/python.exe"
 
 [tool.pdm]
 distribution = true
-[[tool.pdm.source]]
-name = "china"
-url = "https://mirrors.huaweicloud.com/repository/pypi/simple"
 
+[[tool.pdm.source]]
+name = "pypi"
+url = "https://mirrors.huaweicloud.com/repository/pypi/simple"
 
 [tool.pdm.build]
 package-dir = "src"
 includes = ["src/ta_inspector"]
 excludes = ["./**/.git", "src/tests"]
-
 
 [dependency-groups]
 dev = [
