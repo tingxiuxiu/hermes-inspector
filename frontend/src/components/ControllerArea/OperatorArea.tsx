@@ -17,7 +17,7 @@ import { setConnectionState } from "../../store/slices/connectionStateSlice";
 import { setAdComponent } from "../../store/slices/androidComponentSlice";
 import {
   setScreenSize,
-  setImageFileName,
+  setImageFilename,
   resetNodeState,
 } from "../../store/slices/screenCacheSlice";
 
@@ -85,12 +85,12 @@ export default function OperatorArea() {
           );
           const x2j = xmlToJSON(res.data.result.pageContent);
           console.log("xml转换后的json", x2j);
-          dispatch(setImageFileName(res.data.result.imageFileName));
+          dispatch(setImageFilename(res.data.result.imageFilename));
           dispatch(
             setAdComponent({
               treeObject: x2j.treeObject,
               treeMap: x2j.treeMap,
-              imageSource: res.data.result.imageFileName,
+              imageSource: res.data.result.imageFilename,
             })
           );
         } else {
@@ -153,12 +153,12 @@ export default function OperatorArea() {
         if (res.data.code === 200) {
           const x2j = xmlToJSON(res.data.result.pageContent);
           console.log("xml转换后的json", x2j);
-          dispatch(setImageFileName(res.data.result.imageFileName));
+          dispatch(setImageFilename(res.data.result.imageFilename));
           dispatch(
             setAdComponent({
               treeObject: x2j.treeObject,
               treeMap: x2j.treeMap,
-              imageSource: res.data.result.imageFileName,
+              imageSource: res.data.result.imageFilename,
             })
           );
         } else {
@@ -190,12 +190,12 @@ export default function OperatorArea() {
         if (res.data.code === 200) {
           const x2j = xmlToJSON(res.data.result.pageContent);
           console.log("xml转换后的json", x2j);
-          dispatch(setImageFileName(res.data.result.imageFileName));
+          dispatch(setImageFilename(res.data.result.imageFilename));
           dispatch(
             setAdComponent({
               treeObject: x2j.treeObject,
               treeMap: x2j.treeMap,
-              imageSource: res.data.result.imageFileName,
+              imageSource: res.data.result.imageFilename,
             })
           );
         } else {
@@ -227,12 +227,12 @@ export default function OperatorArea() {
         if (res.data.code === 200) {
           const x2j = xmlToJSON(res.data.result.pageContent);
           console.log("xml转换后的json", x2j);
-          dispatch(setImageFileName(res.data.result.imageFileName));
+          dispatch(setImageFilename(res.data.result.imageFilename));
           dispatch(
             setAdComponent({
               treeObject: x2j.treeObject,
               treeMap: x2j.treeMap,
-              imageSource: res.data.result.imageFileName,
+              imageSource: res.data.result.imageFilename,
             })
           );
         } else {
@@ -264,12 +264,12 @@ export default function OperatorArea() {
         if (res.data.code === 200) {
           const x2j = xmlToJSON(res.data.result.pageContent);
           console.log("xml转换后的json", x2j);
-          dispatch(setImageFileName(res.data.result.imageFileName));
+          dispatch(setImageFilename(res.data.result.imageFilename));
           dispatch(
             setAdComponent({
               treeObject: x2j.treeObject,
               treeMap: x2j.treeMap,
-              imageSource: res.data.result.imageFileName,
+              imageSource: res.data.result.imageFilename,
             })
           );
         } else {
@@ -301,12 +301,12 @@ export default function OperatorArea() {
         if (res.data.code === 200) {
           const x2j = xmlToJSON(res.data.result.pageContent);
           console.log("xml转换后的json", x2j);
-          dispatch(setImageFileName(res.data.result.imageFileName));
+          dispatch(setImageFilename(res.data.result.imageFilename));
           dispatch(
             setAdComponent({
               treeObject: x2j.treeObject,
               treeMap: x2j.treeMap,
-              imageSource: res.data.result.imageFileName,
+              imageSource: res.data.result.imageFilename,
             })
           );
         } else {

@@ -96,17 +96,17 @@ const ImageCalculatePanel: React.FC = () => {
         if (response.data.success) {
             enqueueSnackbar("计算成功", { variant: "success" });
             setResultData({
-                imagePath: "http://" + window.location.host + "/api/v1/system/resource/?image=" + response.data.result?.imageFileName || "",
+                imagePath: "http://" + window.location.host + "/api/v1/system/resource/?image=" + response.data.result?.imageFilename || "",
                 result: response.data.result,
             });
         } else {
-            enqueueSnackbar("计算失败", { variant: "error" });
+            enqueueSnackbar(response.data.message || "计算失败", { variant: "error" });
         }
         setResultOpen(true);
 
     } catch (error) {
         console.error("Calculation failed", error);
-        enqueueSnackbar("计算失败", { variant: "error" });
+        enqueueSnackbar("请求计算失败", { variant: "error" });
     } finally {
         setLoading(false);
     }

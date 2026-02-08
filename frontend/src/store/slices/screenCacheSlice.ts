@@ -4,7 +4,7 @@ import type { TreeObject, Bounds } from "../../types/ComponentInspector";
 export const screenCacheSlice = createSlice({
   name: "screenCache",
   initialState: {
-    imageFileName: "wait-image.png",
+    imageFilename: "wait-image.png",
     width: 960,
     height: 540,
     scale: 1,
@@ -15,8 +15,8 @@ export const screenCacheSlice = createSlice({
     focusNodeKey: null as string | null,
   },
   reducers: {
-    setImageFileName: (state, action) => {
-      state.imageFileName = action.payload;
+    setImageFilename: (state, action) => {
+      state.imageFilename = action.payload;
     },
     setSelectedBounds: (state, action) => {
       state.selectedBounds = action.payload;
@@ -50,7 +50,7 @@ export const screenCacheSlice = createSlice({
 });
 
 export const {
-  setImageFileName,
+  setImageFilename,
   setScreenSize,
   setScreenScale,
   setSelectedNode,

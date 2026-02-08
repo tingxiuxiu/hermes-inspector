@@ -54,8 +54,8 @@ def dump_resource() -> ScreenModelResponse:
             message="Dump Screen Success",
             result=OperationResult(
                 pageContent=xml_content,
-                pageFileName=xml_filename,
-                imageFileName=str(img_path.name),
+                pageFilename=xml_filename,
+                imageFilename=str(img_path.name),
             ),
         )
     except Exception as e:
@@ -127,8 +127,8 @@ def operator_action(data: OperationRequest) -> ScreenModelResponse:
             message="Click Success",
             result=OperationResult(
                 pageContent=xml_content,
-                pageFileName=xml_filename,
-                imageFileName=str(save_path.name),
+                pageFilename=xml_filename,
+                imageFilename=str(save_path.name),
             ),
         )
     except Exception as e:

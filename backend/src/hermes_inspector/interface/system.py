@@ -19,8 +19,8 @@ class ResponseModel(BaseModel):
 
 class ComponentResource(BaseModel):
     pageContent: str
-    pageFileName: str
-    imageFileName: str
+    pageFilename: str
+    imageFilename: str
     size: Size
 
 

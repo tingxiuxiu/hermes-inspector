@@ -17,8 +17,8 @@ class OperationRequest(BaseModel):
 
 class OperationResult(BaseModel):
     pageContent: str
-    pageFileName: str
-    imageFileName: str
+    pageFilename: str
+    imageFilename: str
 
 
 class ScreenModelResponse(BaseModel):

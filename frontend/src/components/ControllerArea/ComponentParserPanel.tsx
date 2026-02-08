@@ -24,7 +24,7 @@ import { useAppDispatch } from "../../hooks";
 import { setAdComponent } from "../../store/slices/androidComponentSlice";
 import {
   setScreenSize,
-  setImageFileName,
+  setImageFilename,
   resetNodeState,
 } from "../../store/slices/screenCacheSlice";
 import { setActiveTab } from "../../store/slices/controlTabSlice";
@@ -123,12 +123,12 @@ const ComponentParserPanel: React.FC = () => {
         );
         const x2j = xmlToJSON(response.data.result.pageContent);
         console.log("xml转换后的json", x2j);
-        dispatch(setImageFileName(response.data.result.imageFileName));
+        dispatch(setImageFilename(response.data.result.imageFilename));
         dispatch(
           setAdComponent({
             treeObject: x2j.treeObject,
             treeMap: x2j.treeMap,
-            imageSource: response.data.result.imageFileName,
+            imageSource: response.data.result.imageFilename,
           })
         );
         dispatch(setActiveTab("1"));

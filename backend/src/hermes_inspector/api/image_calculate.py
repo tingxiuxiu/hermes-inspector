@@ -1,6 +1,6 @@
 import os
 import cv2
-import json
+
 from typing import Dict, Any, List
 
 from fastapi import APIRouter, File, UploadFile, Form
@@ -28,7 +28,7 @@ image_handler_router = APIRouter(prefix="/calculate")
 @image_handler_router.post("/crop-image")
 def crop_image(data: CropImageRequest) -> CropImageResponse:
     try:
-        img_path = config.CACHE_DIR / data.imageFileName
+        img_path = config.CACHE_DIR / data.imageFilename
         if os.path.exists(img_path) and data.bounds:
             save_path = config.CACHE_DIR / generate_png_filename("crop_image")
             im_read = cv2.imread(str(img_path))
@@ -287,7 +287,7 @@ async def image_match(
         code=200,
         message="Match Success",
         result=MatchImageResult(
-            imageFileName=source_path.name,
+            imageFilename=source_path.name,
             points=[MatchImagePoint(**item) for item in results],
         ),
     )

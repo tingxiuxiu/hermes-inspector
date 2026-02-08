@@ -25,6 +25,19 @@ const loadSystemConfigFromStorage = () => {
   }
 };
 
+const LoadSettingsFromStorage = () => {
+  try {
+    const serializedSettings = localStorage.getItem("settings");
+    if (serializedSettings === null) {
+      return undefined; // 如果没有保存的配置，返回undefined
+    }
+    return JSON.parse(serializedSettings);
+  } catch (error) {
+    console.error("Failed to load settings from localStorage:", error);
+    return undefined;
+  }
+};
+
 // 创建系统配置本地存储中间件
 const systemConfigStorageMiddleware: Middleware =
   (store) => (next) => (action: any) => {
@@ -42,6 +55,17 @@ const systemConfigStorageMiddleware: Middleware =
         console.error("Failed to save system config to localStorage:", error);
       }
     }
+    // 检查是否是settings相关的action
+    if (action.type.startsWith("settings/")) {
+      try {
+        // 获取当前的settings状态
+        const settings = store.getState().settings;
+        // 保存到localStorage
+        localStorage.setItem("settings", JSON.stringify(settings));
+      } catch (error) {
+        console.error("Failed to save settings to localStorage:", error);
+      }
+    }
 
     return result;
   };
@@ -51,11 +75,16 @@ const preloadedState = {
   systemConfig: loadSystemConfigFromStorage() || {
     // 如果没有保存的配置，使用默认值
     deviceType: "android",
-    driverType: "appium",
     cachePath: "~/ta-inspector",
     deviceSerial: undefined,
-    appiumUrl: "http://localhost:4723",
     ocrType: "baidu",
+  },
+  settings: LoadSettingsFromStorage() || {
+    // 如果没有保存的配置，使用默认值
+    apiKey: undefined,
+    secretKey: undefined,
+    openai: undefined,
+    gemini: undefined,
   },
 };
 

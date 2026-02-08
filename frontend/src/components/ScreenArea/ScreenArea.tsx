@@ -36,41 +36,43 @@ const ScreenArea: React.FC = () => {
       };
       // console.log("当前鼠标位置:", relativePosition);
 
-      let minDistanceC = Infinity;
-      let minDistanceLT = Infinity;
-      let closestItem = null;
-      let closestKey = null;
+      let closestItems: Array<{ key: string; value: any; area: number; distance: number }> = [];
+      
+      // 收集所有包含鼠标的节点
       for (let [key, value] of Object.entries(treeMap)) {
-        // console.log("遍历节点对象计算距离")
-        // console.log(key, value);
-        // 检查鼠标是否在节点范围内
         const [x1, y1, x2, y2] = value.boundsArray || [0, 0, 0, 0];
-        const isInside =
+        const isInside = 
           relativePosition.x >= x1 &&
           relativePosition.x <= x2 &&
           relativePosition.y >= y1 &&
           relativePosition.y <= y2;
 
-        // 收集所有包含鼠标的节点
         if (isInside) {
-          // 计算中心距离 和 左上角距离
-          const distanceC = Math.sqrt(
+          // 计算节点面积
+          const area = (x2 - x1) * (y2 - y1);
+          // 计算中心距离
+          const distance = Math.sqrt(
             (value.center[0] - relativePosition.x) ** 2 +
               (value.center[1] - relativePosition.y) ** 2
           );
-          const distanceLT = Math.sqrt(
-            (value.boundsArray[0] - relativePosition.x) ** 2 +
-              (value.boundsArray[1] - relativePosition.y) ** 2
-          );
-          // console.log("当前节点距离:", distanceC);
-          if (distanceC < minDistanceC && distanceLT < minDistanceLT) {
-            minDistanceC = distanceC;
-            minDistanceLT = distanceLT;
-            closestItem = value;
-            closestKey = key;
-            // console.log("最近节点key:", closestKey, "最近节点value:", closestItem.center);
-          }
+          
+          closestItems.push({ key, value, area, distance });
         }
+      }
+      
+      let closestKey = null;
+      if (closestItems.length > 0) {
+        // 优先选择面积最小的节点（最内层节点）
+        // 如果面积相同，则选择中心距离最小的节点
+        closestItems.sort((a, b) => {
+          if (a.area !== b.area) {
+            return a.area - b.area; // 面积小的排前面
+          } else {
+            return a.distance - b.distance; // 距离近的排前面
+          }
+        });
+        
+        closestKey = closestItems[0].key;
       }
       dispatch(setFocusNodeKey(closestKey));
       dispatch(setMousePosition(relativePosition));

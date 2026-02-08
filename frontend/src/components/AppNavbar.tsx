@@ -112,7 +112,6 @@ export default function AppNavBar() {
         <IconButton
           color="primary"
           aria-label="Settings"
-          disabled={connected}
           onClick={() => setOpenSettingsDialog(true)}
         >
           <SettingsIcon />

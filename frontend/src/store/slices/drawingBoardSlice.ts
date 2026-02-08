@@ -1,17 +1,16 @@
 import { createSlice } from "@reduxjs/toolkit";
-import type { MarkingBox } from "../../types/DraingScreen";
 
 export const drawingBoardSlice = createSlice({
   name: "drawingBoard",
   initialState: {
-    markingBoxes: [] as MarkingBox[],
+    imageFilename: "wait-image.png",
   },
   reducers: {
-    setMarkingBoxes: (state, action) => {
-      state.markingBoxes = action.payload;
+    setImageFilename: (state, action) => {
+      state.imageFilename = action.payload;
     },
   },
 });
 
-export const { setMarkingBoxes } = drawingBoardSlice.actions;
+export const { setImageFilename } = drawingBoardSlice.actions;
 export const drawingBoardReducer = drawingBoardSlice.reducer;

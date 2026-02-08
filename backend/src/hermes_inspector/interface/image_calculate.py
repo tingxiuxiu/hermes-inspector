@@ -6,7 +6,7 @@ from .common import CommonResponse
 
 
 class CropImageRequest(BaseModel):
-    imageFileName: str
+    imageFilename: str
     bounds: Bounds | None = None
 
 
@@ -15,17 +15,13 @@ class CropImageResponse(CommonResponse):
 
 
 class OcrRequest(BaseModel):
-    imageFileName: str | None = None
+    imageFilename: str | None = None
     bounds: Bounds | None = None
 
 
-class OcrResponse(CommonResponse):
-    result: str | None = None
-
-
 class MatchImageRequest(BaseModel):
-    targetImageFileName: str
-    templateImageFileName: str
+    targetImageFilename: str
+    templateImageFilename: str
 
 
 class MatchImagePoint(BaseModel):
@@ -37,7 +33,7 @@ class MatchImagePoint(BaseModel):
 
 
 class MatchImageResult(BaseModel):
-    imageFileName: str
+    imageFilename: str
     points: Sequence[MatchImagePoint] = []
 
 
@@ -68,7 +64,7 @@ class WordItem(BaseModel):
 
 
 class OcrResult(BaseModel):
-    imageFileName: str
+    imageFilename: str
     words_result: Sequence[WordItem] = []
 
 

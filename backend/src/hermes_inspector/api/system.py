@@ -66,8 +66,8 @@ async def upload_file(
                 message="File saved successfully",
                 result=ComponentResource(
                     pageContent=page_contents.decode("utf-8"),
-                    pageFileName=page_path.name,
-                    imageFileName=image_path.name,
+                    pageFilename=page_path.name,
+                    imageFilename=image_path.name,
                     size=size,
                 ),
             )
@@ -123,8 +123,8 @@ def connect_device(data: ConnectRequest) -> PageResourceResponse:
             message="success",
             result=ComponentResource(
                 pageContent=xml_content,
-                pageFileName=xml_file_name,
-                imageFileName=img_path.name,
+                pageFilename=xml_file_name,
+                imageFilename=img_path.name,
                 size=size,
             ),
         )
@@ -187,7 +187,8 @@ def get_screenshot_file(image: str):
         asset_file = config.STATIC_DIR / image
     else:
         asset_file = config.CACHE_DIR / image
-    if asset_file.exists():
+
+    if asset_file.is_file() and asset_file.exists():
         return FileResponse(asset_file, media_type="image")
     else:
         return Response(

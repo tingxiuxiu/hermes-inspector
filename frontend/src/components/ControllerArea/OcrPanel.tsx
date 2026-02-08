@@ -99,17 +99,17 @@ const OcrPanel: React.FC = () => {
         if (response.data.success) {
             enqueueSnackbar("识别成功", { variant: "success" });
             setResultData({
-                imagePath: "http://" + window.location.host + "/api/v1/system/resource/?image=" + response.data.result?.imageFileName || "", 
+                imagePath: "http://" + window.location.host + "/api/v1/system/resource/?image=" + response.data.result?.imageFilename || "", 
                 result: response.data.result
             });
         } else {
-            enqueueSnackbar("识别失败", { variant: "error" });
+            enqueueSnackbar(response.data.message || "识别失败", { variant: "error" });
         }
         setResultOpen(true);
 
     } catch (error) {
         console.error("Recognition failed", error);
-        enqueueSnackbar("识别失败", { variant: "error" });
+        enqueueSnackbar("请求识别失败,请确认API密钥是否正确", { variant: "error" });
     } finally {
         setLoading(false);
     }

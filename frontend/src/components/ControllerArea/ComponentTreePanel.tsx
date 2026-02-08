@@ -46,7 +46,7 @@ import { setAdComponent } from "../../store/slices/androidComponentSlice";
 import {
   setFocusNodeKey,
   setSelectedNodeKey,
-  setImageFileName,
+  setImageFilename,
   resetNodeState,
 } from "../../store/slices/screenCacheSlice";
 import type { TreeObject } from "../../types/ComponentInspector";
@@ -54,6 +54,12 @@ import type { TreeObject } from "../../types/ComponentInspector";
 type RowItem = {
   attribute: string;
   value: string;
+};
+
+type CheckResultItem = {
+  screenshot: string;
+  title: string;
+  description: string;
 };
 
 function ComponentTreePanel() {
@@ -70,7 +76,7 @@ function ComponentTreePanel() {
   const [checkStatus, setCheckStatus] = useState<
     "idle" | "success" | "error" | "loading"
   >("idle");
-  const [checkResult, setCheckResult] = useState<any>(null);
+  const [checkResult, setCheckResult] = useState<CheckResultItem[] | null>(null);
   const [showResultPopup, setShowResultPopup] = useState(false);
   const [selectorParams, setSelectorParams] = useState<{
     resource_id?: string;
@@ -80,7 +86,7 @@ function ComponentTreePanel() {
     xpath?: string | null;
   }>({});
 
-  const { selectedNodeKey, imageFileName } = useAppSelector(
+  const { selectedNodeKey, imageFilename } = useAppSelector(
     (state) => state.screenCache
   );
   const { treeObject, treeMap } = useAppSelector(
@@ -96,6 +102,16 @@ function ComponentTreePanel() {
           attribute: key,
           value: treeMap[selectedNodeKey]["attributes"][key],
         });
+        if (key === "bounds") {
+          tmpRows.push({
+            attribute: "center",
+            value: `${treeMap[selectedNodeKey]["center"]}` || "",
+          });
+          tmpRows.push({
+            attribute: "xpath",
+            value: treeMap[selectedNodeKey]["xpath"] || "",
+          });
+        }
       }
       setCheckStatus("idle"); // 重置状态
       setRow(tmpRows);
@@ -206,7 +222,7 @@ function ComponentTreePanel() {
     console.log("请求截图", key);
     axios
       .post("/api/v1/calculate/crop-image", {
-        imageFileName: imageFileName,
+        imageFilename: imageFilename,
         bounds: {
           left: treeMap[key]["boundsArray"][0],
           top: treeMap[key]["boundsArray"][1],
@@ -254,14 +270,14 @@ function ComponentTreePanel() {
           });
           console.log("点击成功", res);
           dispatch(resetNodeState());
-          const x2j = xmlToJSON(res.data.result.pageSource);
+          const x2j = xmlToJSON(res.data.result.pageContent);
           console.log("xml转换后的json", x2j);
-          dispatch(setImageFileName(res.data.result.imageFileName));
+          dispatch(setImageFilename(res.data.result.imageFilename));
           dispatch(
             setAdComponent({
               treeObject: x2j.treeObject,
               treeMap: x2j.treeMap,
-              imageSource: res.data.result.imageFileName,
+              imageSource: res.data.result.imageFilename,
             })
           );
         } else {
@@ -347,7 +363,11 @@ function ComponentTreePanel() {
                         setCheckStatus("success"); // 设置成功状态
                       } else {
                         // 保存错误信息
-                        setCheckResult(response.data.message || "检查失败");
+                        setCheckResult([{
+                          screenshot: "",
+                          title: "检查失败",
+                          description: response.data.message || "检查失败"
+                        }]);
                         // 显示结果悬浮框
                         setShowResultPopup(true);
                         enqueueSnackbar("检查失败: " + response.data.message, {
@@ -358,12 +378,11 @@ function ComponentTreePanel() {
                     } catch (error) {
                       console.error("检查请求失败:", error);
                       // 保存错误信息
-                      setCheckResult(
-                        "请求失败: " +
-                          (error instanceof Error
-                            ? error.message
-                            : String(error))
-                      );
+                      setCheckResult([{
+                        screenshot: "",
+                        title: "请求失败",
+                        description: error instanceof Error ? error.message : String(error)
+                      }]);
                       // 显示结果悬浮框
                       setShowResultPopup(true);
                       enqueueSnackbar("检查请求失败", { variant: "error" });
@@ -485,7 +504,7 @@ function ComponentTreePanel() {
                         margin: "0 auto",
                       }}
                     >
-                      {checkResult.map((item, index) => (
+                      {checkResult && checkResult.map((item, index) => (
                         <ImageListItem key={index}>
                           <img
                             src={

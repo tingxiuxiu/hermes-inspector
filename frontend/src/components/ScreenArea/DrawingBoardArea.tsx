@@ -10,7 +10,6 @@ import {
   Layer,
   Rect,
   Circle,
-  Text,
   Image as KonvaImage,
 } from "react-konva";
 import useImage from "use-image";
@@ -26,13 +25,12 @@ const DrawingBoardArea: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const dispatch = useAppDispatch();
   const { imageSource } = useAppSelector((state) => state.androidComponent);
-  const { width, height, scale, imageFileName, selectedBounds } = useAppSelector(
+  const { width, height, scale, imageFilename, selectedBounds } = useAppSelector(
     (state) => state.screenCache
   );
   const { startPosition, endPosition } = useAppSelector(
     (state) => state.mouseAction
   );
-  const { markingBoxes } = useAppSelector((state) => state.drawingBoard);
 
   const clearButtonLeft = width * scale - 34;
 
@@ -108,7 +106,7 @@ const DrawingBoardArea: React.FC = () => {
   const handleCropImage = () => {
     axios
       .post("api/v1/calculate/crop-image", {
-        imageFileName: imageFileName,
+        imageFilename: imageFilename,
         bounds: selectedBounds,
       })
       .then((res) => {
@@ -175,27 +173,6 @@ const DrawingBoardArea: React.FC = () => {
               />
             </>
           )}
-          {markingBoxes.map((box) => (
-            <>
-              <Rect
-                key={box.id + "-rect"}
-                x={box.x}
-                y={box.y}
-                width={box.width}
-                height={box.height}
-                stroke={"#F76560"}
-                strokeWidth={2}
-              />
-              <Text
-                key={box.id + "-text"}
-                x={box.x + 5}
-                y={box.y + 5}
-                text={box.text}
-                fill={"#F76560"}
-                fontSize={16}
-              />
-            </>
-          ))}
         </Layer>
       </Stage>
       {showExtraButton && (
