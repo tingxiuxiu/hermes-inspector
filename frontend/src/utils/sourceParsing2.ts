@@ -106,11 +106,7 @@ export function xmlToJSON(sourceXML: string): {
     return boundValues.split(",").map((num) => parseInt(num, 10));
   };
 
-  const translateRecursively = (
-    domNode: Element,
-    parentPath = "",
-    index: number | null = null,
-  ): TreeObject => {
+  const translateRecursively = (domNode: Element): TreeObject => {
     const attributes: Record<string, string> = {};
     let boundsArray = [0, 0, 0, 0];
     if (domNode.attributes) {
@@ -131,23 +127,11 @@ export function xmlToJSON(sourceXML: string): {
       Math.round((boundsArray[1] + boundsArray[3]) / 2),
     ];
 
-    // Dot Separated path of indices
-    const key = _.isNil(index)
-      ? "0"
-      : `${!parentPath ? "" : parentPath + "-"}${index}`;
-
-    // Check if sourceDoc is available in scope or pass it.
-    // Wait, sourceDoc is defined below. I need to move sourceDoc definition up or pass it.
-    // In original code, sourceDoc is defined at line 124, but used at line 99 inside translateRecursively.
-    // Because translateRecursively is defined *before* sourceDoc, but *called* after (line 132), it captures the variable.
-    // However, TypeScript might complain if I type it as Document before it's initialized?
-    // No, standard closure rules apply.
-
     const xpath = getOptimalXPath(sourceDoc, domNode);
     const treeObject: TreeObject = {
       tagName: domNode.tagName,
       attributes,
-      key,
+      key: attributes.key,
       xpath,
       boundsArray,
       center,
@@ -155,10 +139,10 @@ export function xmlToJSON(sourceXML: string): {
     };
 
     // Store in maps
-    treeMap[key] = treeObject;
+    treeMap[attributes.key] = treeObject;
 
-    treeObject.children = childNodesOf(domNode).map((childNode, childIndex) =>
-      translateRecursively(childNode as Element, key, childIndex),
+    treeObject.children = childNodesOf(domNode).map((childNode) =>
+      translateRecursively(childNode as Element),
     );
 
     return treeObject;
@@ -426,6 +410,20 @@ export function getOptimalUiAutomatorSelector(
   path: string,
 ): string | null {
   return new UiAutomatorGenerator(doc, domNode, path).generate();
+}
+
+/**
+ * Get an optimal JSONPath for a target node within a JSON object
+ *
+ * @param {SourceJSON} rootJSON - the root JSON object
+ * @param {SourceJSON} targetNode - the target node to find
+ * @returns {string|null} the JSONPath expression or null if not found
+ */
+export function getOptimalJSONPath(
+  rootJSON: SourceJSON,
+  targetNode: SourceJSON,
+): string | null {
+  return new JSONPathGenerator(rootJSON, targetNode).generate();
 }
 
 // ============================================================================
@@ -1301,6 +1299,125 @@ class UiAutomatorGenerator extends LocatorGeneratorBase {
     }
 
     return mostUniqueSelector || null;
+  }
+}
+
+/**
+ * Generator for JSONPath expressions
+ * @private
+ */
+class JSONPathGenerator {
+  private _rootJSON: SourceJSON;
+  private _targetNode: SourceJSON;
+
+  /**
+   * @param {SourceJSON} rootJSON - the root JSON object
+   * @param {SourceJSON} targetNode - the target node to find
+   */
+  constructor(rootJSON: SourceJSON, targetNode: SourceJSON) {
+    this._rootJSON = rootJSON;
+    this._targetNode = targetNode;
+  }
+
+  /**
+   * Generate an optimal JSONPath for the target node
+   *
+   * @returns {string|null} the JSONPath expression or null if not found
+   */
+  generate(): string | null {
+    try {
+      // Try to find the path by traversing the JSON tree
+      const path = this._findNodePath(this._rootJSON, this._targetNode, "$");
+      return path;
+    } catch (error) {
+      logLocatorError("JSONPath", error as Error);
+      return null;
+    }
+  }
+
+  /**
+   * Recursively find the path to the target node
+   *
+   * @param {SourceJSON} currentNode - the current node being traversed
+   * @param {SourceJSON} targetNode - the target node to find
+   * @param {string} currentPath - the current JSONPath
+   * @returns {string|null} the JSONPath to the target node or null if not found
+   */
+  _findNodePath(
+    currentNode: SourceJSON,
+    targetNode: SourceJSON,
+    currentPath: string,
+  ): string | null {
+    // Check if current node is the target
+    if (this._isSameNode(currentNode, targetNode)) {
+      return currentPath;
+    }
+
+    // Traverse children
+    if (currentNode.children && Array.isArray(currentNode.children)) {
+      for (let i = 0; i < currentNode.children.length; i++) {
+        const child = currentNode.children[i];
+        const childPath = `${currentPath}.children[${i}]`;
+        const result = this._findNodePath(child, targetNode, childPath);
+        if (result) {
+          return result;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if two nodes are the same by comparing their properties
+   *
+   * @param {SourceJSON} node1 - first node
+   * @param {SourceJSON} node2 - second node
+   * @returns {boolean} true if nodes are the same
+   */
+  _isSameNode(node1: SourceJSON, node2: SourceJSON): boolean {
+    // Compare by reference first
+    if (node1 === node2) {
+      return true;
+    }
+
+    // Compare by key properties
+    const props1 = this._getNodeProperties(node1);
+    const props2 = this._getNodeProperties(node2);
+
+    return JSON.stringify(props1) === JSON.stringify(props2);
+  }
+
+  /**
+   * Get the identifying properties of a node
+   *
+   * @param {SourceJSON} node - the node
+   * @returns {Record<string, unknown>} the identifying properties
+   */
+  _getNodeProperties(node: SourceJSON): Record<string, unknown> {
+    const props: Record<string, unknown> = {};
+
+    // Include tagName if available
+    if (node.tagName) {
+      props.tagName = node.tagName;
+    }
+
+    // Include attributes if available
+    if (node.attributes) {
+      props.attributes = node.attributes;
+    }
+
+    // Include bounds if available
+    if (node.boundsArray) {
+      props.boundsArray = node.boundsArray;
+    }
+
+    // Include key if available
+    if (node.key) {
+      props.key = node.key;
+    }
+
+    return props;
   }
 }
 
