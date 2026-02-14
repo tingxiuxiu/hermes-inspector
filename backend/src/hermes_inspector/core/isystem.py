@@ -67,7 +67,11 @@ class IAndroidSystem(metaclass=SingletonMeta):
             return self._device
         if self._device is None:
             self._device = new_device(AndroidDeviceModel(serial=self.sn))
-            self._device.connect()
+            try:
+                self._device.connect()
+            except Exception as e:
+                logger.error(f"Failed to connect device, {e}")
+                self._device = None
         return self._device
 
     def disconnect(self) -> bool:
