@@ -96,7 +96,7 @@ function ComponentTreePanel() {
 
   useEffect(() => {
     if (selectedNodeKey) {
-      const tmpRows: RowItem[] = [{ attribute: "key", value: selectedNodeKey }];
+      const tmpRows: RowItem[] = [];
       for (const key in treeMap[selectedNodeKey]["attributes"]) {
         tmpRows.push({
           attribute: key,
@@ -144,7 +144,7 @@ function ComponentTreePanel() {
         ? `${taSelector}    xpath="${sXpath}",\n`
         : taSelector;
       taSelector = `${taSelector})`;
-      console.log("selector", taSelector);
+      // console.log("selector", taSelector);
       setSelectorText(taSelector);
     } else {
       setSelectorText("");
@@ -554,7 +554,7 @@ function ComponentTreePanel() {
                   </TableHead>
                   <TableBody>
                     {rows.map((row) => (
-                      <TableRow key={row.attribute}>
+                      <TableRow>
                         <TableCell align="left">{row.attribute}</TableCell>
                         <TableCell align="left">
                           <Box

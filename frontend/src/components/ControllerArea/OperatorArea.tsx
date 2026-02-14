@@ -55,10 +55,10 @@ export default function OperatorArea() {
         })
         .finally(() => {
           setActionLoading(false);
+          dispatch(setConnectionState(false));
+        dispatch(resetNodeState());
+        setActionLoading(false);
         });
-      dispatch(setConnectionState(false));
-      dispatch(resetNodeState());
-      setActionLoading(false);
       return;
     }
     if (!systemConfig.deviceSerial) {
