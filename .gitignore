@@ -212,3 +212,5 @@ backend/.venv/
 backend/src/.idea
 frontend/dist/
 frontend/node_modules/
+
+.trae

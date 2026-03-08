@@ -123,8 +123,8 @@ export function xmlToJSON(sourceXML: string): {
       boundsArray = parseBounds(attributes.bounds);
     }
     const center = [
-      Math.round((boundsArray[0] + boundsArray[2]) / 2),
-      Math.round((boundsArray[1] + boundsArray[3]) / 2),
+      Math.round(boundsArray[0] + (boundsArray[2] - boundsArray[0]) / 2),
+      Math.round(boundsArray[1] + (boundsArray[3] - boundsArray[1]) / 2),
     ];
 
     const xpath = getOptimalXPath(sourceDoc, domNode);

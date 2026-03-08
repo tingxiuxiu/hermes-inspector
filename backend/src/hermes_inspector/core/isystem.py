@@ -108,7 +108,7 @@ class IAndroidSystem(metaclass=SingletonMeta):
             raise RuntimeError("Device is not connected")
         filename = generate_xml_filename("page_source")
         save_path = config.CACHE_DIR / filename
-        content = self._device.driver.get_page(display_id)
+        content = self._device.driver.get_xml_tree(display_id)
         with open(save_path, "w", encoding="utf-8") as f:
             f.write(content)
         return save_path, filename, content
